@@ -1,4 +1,5 @@
 const std = @import("std");
+const raylib = @import("raylib/build.zig");
 
 // Although this function looks imperative, note that its job is to
 // declaratively construct a build graph that will be executed by an external
@@ -13,7 +14,7 @@ pub fn build(b: *std.Build) void {
     // Standard optimization options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
     // set a preferred release mode, allowing the user to decide how to optimize.
-    const optimize = b.standardOptimizeOption(.{});
+    const mode = b.standardOptimizeOption(.{});
 
     const exe = b.addExecutable(.{
         .name = "flock",
@@ -21,8 +22,10 @@ pub fn build(b: *std.Build) void {
         // complicated build scripts, this could be a generated file.
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
-        .optimize = optimize,
+        .optimize = mode,
     });
+
+    raylib.addTo(b, exe, target, mode);
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
@@ -57,7 +60,7 @@ pub fn build(b: *std.Build) void {
     const unit_tests = b.addTest(.{
         .root_source_file = .{ .path = "src/main.zig" },
         .target = target,
-        .optimize = optimize,
+        .optimize = mode,
     });
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
