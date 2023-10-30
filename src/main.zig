@@ -4,7 +4,7 @@ const rl = @import("raylib");
 const helper = @import("helper.zig");
 const settings = @import("settings.zig");
 const level = @import("level.zig");
-const debug = @import("debug_scene.zig");
+const debug = @import("debug.zig");
 
 const Agent = @import("./agent.zig").Agent;
 const Controller = @import("./controller.zig");
@@ -23,11 +23,12 @@ pub fn main() void {
         .y = @floatFromInt(@divExact(@as(i32, @intCast(settings.resolution.Height)), 2)),
     }, .rotation = 0, .zoom = 0.5 };
 
-    level.init();
+    level.init(&cam);
+    debug.init(std.heap.page_allocator);
 
     while (!rl.WindowShouldClose()) {
         // --- UPDATE ---
-        Controller.update_camera(&cam);
+        Controller.update(&cam);
         level.update();
 
         // --- Draw ---

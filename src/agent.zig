@@ -4,13 +4,13 @@ const settings = @import("./settings.zig");
 const level = @import("level.zig");
 const helper = @import("helper.zig");
 
-const average_agent_speed: f32 = 2 * @as(f32, @floatFromInt(settings.ppu));
+const average_agent_speed: f32 = 0 * @as(f32, @floatFromInt(settings.ppu));
 
 const vertices = blk: {
     const ppu: f32 = @floatFromInt(settings.ppu);
 
     break :blk [_]rl.Vector2 {
-        rl.Vector2 {.x = -0.4 * ppu, .y = -0.4 * ppu} ,
+        rl.Vector2 {.x = -0.4 * ppu, .y = -0.4 * ppu},
         rl.Vector2 {.x = 0.0, .y = -0.2 * ppu},
         rl.Vector2 {.x = 0.4 * ppu, .y = -0.4 * ppu},
         rl.Vector2 {.x = 0, .y = 0.6 * ppu}

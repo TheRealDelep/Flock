@@ -8,7 +8,7 @@ const move_speed_kb = 10.0;
 const move_speed_mouse = 1.0;
 const scroll_speed = 1.0;
 
-pub fn update_camera(cam: *rl.Camera2D) void {
+pub fn update(cam: *rl.Camera2D) void {
     var movement = getCamMove();
 
     if ((rl.Vector2Equals(movement, rl.Vector2.zero())) != 1) {
