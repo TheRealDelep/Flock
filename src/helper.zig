@@ -5,8 +5,8 @@ var rnd = std.rand.DefaultPrng.init(0);
 
 var is_rnd_initialized = false;
 
-pub const Random = struct {
-    pub fn get_f32() f32 {
+pub const random = struct {
+    pub fn getF32() f32 {
         if (!is_rnd_initialized) {
             const seed : u64 = @truncate(@as(u128, @bitCast(std.time.nanoTimestamp())));
             rnd = std.rand.DefaultPrng.init(seed);
@@ -16,9 +16,9 @@ pub const Random = struct {
         return rnd.random().float(f32);
     }
 
-    pub fn get_vec2(coef: ?rl.Vector2) rl.Vector2 {
-        const x = get_f32();
-        const y = get_f32();
+    pub fn getVec2(coef: ?rl.Vector2) rl.Vector2 {
+        const x = getF32();
+        const y = getF32();
 
         if (coef) |c| {
             return rl.Vector2 {
@@ -28,5 +28,11 @@ pub const Random = struct {
         }
 
         return rl.Vector2 {.x = x, .y = y};
+    }
+};
+
+pub const vec2 = struct {
+    pub fn scalarMult(vec: rl.Vector2, scalar: f32) rl.Vector2 {
+        return rl.Vector2 {.x = vec.x * scalar, .y = vec.y * scalar};
     }
 };

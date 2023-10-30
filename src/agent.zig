@@ -4,7 +4,7 @@ const settings = @import("./settings.zig");
 const level = @import("level.zig");
 const helper = @import("helper.zig");
 
-const average_agent_speed: f32 = 1 * @as(f32, @floatFromInt(settings.ppu));
+const average_agent_speed: f32 = 2 * @as(f32, @floatFromInt(settings.ppu));
 
 const vertices = blk: {
     const ppu: f32 = @floatFromInt(settings.ppu);

@@ -6,9 +6,10 @@ const settings = @import("settings.zig");
 const Agent = @import("agent.zig").Agent;
 
 pub const size: f32 = 50;
-pub const flock_size = 2;
+pub const flock_size = 50;
 
 var flock: [flock_size]Agent = undefined;
+var debug_draws: std.ArrayList(fn () void) = std.ArrayList.init();
 
 pub fn init() void {
     // for (&flock) |*agent| {
@@ -19,8 +20,8 @@ pub fn init() void {
     //     agent.* = Agent.new(position, rotation, null);
     // }
 
-    flock[0] = Agent.new(rl.Vector2{ .x = 0, .y = -2}, 45, null);
-    flock[1] = Agent.new(rl.Vector2{ .x = 0, .y = -5}, -45, null);
+    flock[0] = Agent.new(rl.Vector2{ .x = 0, .y = -2 }, 45, null);
+    flock[1] = Agent.new(rl.Vector2{ .x = 0, .y = -5 }, -45, null);
 }
 
 pub fn update() void {
@@ -39,9 +40,9 @@ pub fn update() void {
                 center_of_mass = center_of_mass.add(other.position);
                 bird_count += 1.0;
             }
-        }  
+        }
 
-        if (bird_count > 0 ) {
+        if (bird_count > 0) {
             self.lookAt(center_of_mass);
         }
     }
@@ -49,13 +50,13 @@ pub fn update() void {
 
 pub fn draw() void {
     drawGrid();
-    for (&flock) |*agent|{
+    for (&flock) |*agent| {
         agent.draw();
     }
 }
 
 fn drawGrid() void {
-    const ppu: i32 = @intCast(settings.ppu); 
+    const ppu: i32 = @intCast(settings.ppu);
     const sizeInt: i32 = @intFromFloat(size);
 
     for (0..size + 1) |i| {
@@ -64,8 +65,8 @@ fn drawGrid() void {
         var color = rl.DARKGRAY;
         if (i % 10 == 0) {
             color = rl.LIGHTGRAY;
-        } else if (i % 5 == 0){
-            color = rl.GRAY; 
+        } else if (i % 5 == 0) {
+            color = rl.GRAY;
         }
 
         rl.DrawLine(ppu * index, ppu * -sizeInt, ppu * index, ppu * sizeInt, color);
