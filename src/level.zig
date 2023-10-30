@@ -40,6 +40,8 @@ pub fn update() void {
     for (&flock) |*self| {
         defer self.update();
 
+        const is_selected = selected_agent == self;
+
         var bird_count: f32 = 0;
         var center_of_mass = rl.Vector2.zero();
 
@@ -49,7 +51,7 @@ pub fn update() void {
             }
 
             if (rl.Vector2.distanceTo(self.position, other.position) < attraction_radius) {
-                if (selected_agent == self) {
+                if (is_selected) {
                     debug.drawShape(debug.Shape {
                         .color = rl.YELLOW,
                         .origin = self.position,
@@ -60,6 +62,14 @@ pub fn update() void {
                 center_of_mass = center_of_mass.add(other.position);
                 bird_count += 1.0;
             }
+        }
+
+        if (is_selected) {
+            debug.drawShape(debug.Shape {
+                .color = rl.GREEN,
+                .origin = center_of_mass,
+                .kind = .{ .circle = 0.25}
+            });
         }
 
         if (bird_count > 0) {
