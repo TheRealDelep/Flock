@@ -4,8 +4,8 @@ const settings = @import("./settings.zig");
 const level = @import("level.zig");
 const helper = @import("helper.zig");
 
-pub const cruise_speed: f32 = 5;
-pub const max_speed: f32 = 10;
+pub const cruise_speed: f32 = 10;
+pub const max_speed: f32 = 15;
 
 pub const max_acceleration: f32 = 100;
 

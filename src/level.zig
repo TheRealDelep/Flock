@@ -9,13 +9,21 @@ const Agent = agent.Agent;
 const debug = @import("debug.zig");
 
 pub const size: f32 = 50;
+pub const level_bounds = rl.Rectangle {
+    .x = 0,
+    .y = 0,
+    .height = size,
+    .width = size
+};
+
 pub const flock_size = 100;
 
-pub const attraction_radius = 7.5;
+pub const attraction_radius = 5;
 pub const avoidance_radius = 2;
 
 pub const attraction_factor = 2;
 pub const avoidance_factor = 5;
+pub const bounds_avoidance_factor = 10;
 
 const attraction_color = rl.YELLOW;
 const avoidance_color = rl.RED;
@@ -55,6 +63,7 @@ pub fn update() void {
         var separation = rl.Vector2.zero();
         var cohesion = rl.Vector2.zero();
         var alignment = rl.Vector2.zero();
+        var bounds_avoidance = rl.Vector2.zero();
 
         for (&flock) |*other| {
             if (self == other) {
@@ -89,7 +98,7 @@ pub fn update() void {
 
                 separation_count += 1;
                 const dir = rl.Vector2Subtract(self.position, other.position).normalize();
-                separation = separation.add(helper.vec2.scalarMult(dir, 1 / dist));
+                separation = separation.add(dir.scale(1 / dist));
             }
         }
 
@@ -130,12 +139,28 @@ pub fn update() void {
             );
         }
 
+        const dist_from_center = self.position.distanceTo(rl.Vector2.zero());
+
+        if (dist_from_center > size - avoidance_radius) {
+            bounds_avoidance = rl.Vector2Clamp(
+                self.position
+                    .scale(-1)
+                    .normalize()
+                    .scale(agent.cruise_speed)
+                    .sub(self.velocity)
+                    .scale(rl.GetFrameTime()),
+                agent.max_acceleration_vec.scale(-1),
+                agent.max_acceleration_vec
+            );
+        }
+
         // Filnally moves the agent
         if (game_manager.game_state == game_manager.GameState.running) {
             self.velocity = self.velocity
                 .add(separation.scale(avoidance_factor))
                 .add(alignment)
-                .add(cohesion.scale(attraction_factor));
+                .add(cohesion.scale(attraction_factor))
+                .add(bounds_avoidance.scale(bounds_avoidance_factor));
 
             self.velocity = rl.Vector2ClampValue(self.velocity, -agent.max_speed, agent.max_speed);
             self.update();
