@@ -9,7 +9,7 @@ const Agent = agent.Agent;
 const debug = @import("debug.zig");
 
 pub const size: f32 = 50;
-pub const flock_size = 25;
+pub const flock_size = 100;
 
 pub const attraction_radius = 7.5;
 pub const avoidance_radius = 2;
