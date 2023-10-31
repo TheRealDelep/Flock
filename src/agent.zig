@@ -4,7 +4,15 @@ const settings = @import("./settings.zig");
 const level = @import("level.zig");
 const helper = @import("helper.zig");
 
-const average_agent_speed: f32 = 0 * @as(f32, @floatFromInt(settings.ppu));
+pub const cruise_speed: f32 = 5;
+pub const max_speed: f32 = 10;
+
+pub const max_acceleration: f32 = 100;
+
+pub const max_acceleration_vec = rl.Vector2 {
+    .x = max_acceleration,
+    .y = max_acceleration
+};
 
 const vertices = blk: {
     const ppu: f32 = @floatFromInt(settings.ppu);
@@ -28,17 +36,17 @@ pub const Agent = struct {
             .position = position orelse rl.Vector2.zero(),
             .rotation = rotation orelse 0,
             .size = size orelse rl.Vector2.one(),
-            .velocity = rl.Vector2.zero()
+            .velocity = blk: {
+                const forward = rl.Vector2Rotate(rl.Vector2 { .x = 0, .y = 1}, rotation orelse 0 * rl.DEG2RAD);
+                break :blk forward.scale(cruise_speed);
+            }
         };
     }
 
     pub fn update(self: *Agent) void {
-        const forward = rl.Vector2Rotate(rl.Vector2 {.x = 0, .y = 1}, self.rotation * rl.DEG2RAD);
-        const ppu = @as(f32, @floatFromInt(settings.ppu));
-        self.position = self.position.add(rl.Vector2 {
-            .x = forward.x * average_agent_speed * rl.GetFrameTime() / ppu, 
-            .y = forward.y * average_agent_speed * rl.GetFrameTime() / ppu
-        });
+        const new_pos = self.position.add(self.velocity.scale(rl.GetFrameTime()));
+        self.lookAt(new_pos);
+        self.position = new_pos;
     }
 
     pub fn lookAt(self: *Agent, target: rl.Vector2) void {
@@ -68,8 +76,8 @@ pub const Agent = struct {
             .Vector2Multiply(vertex, self.size)
             .rotate(self.rotation * rl.DEG2RAD)
             .add(rl.Vector2 {
-                .x = self.position.x * @as(f32, @floatFromInt(settings.ppu)),
-                .y = self.position.y * @as(f32, @floatFromInt(settings.ppu))
+                .x = self.position.x * settings.ppu_f,
+                .y = self.position.y * settings.ppu_f
             });
     }
 };

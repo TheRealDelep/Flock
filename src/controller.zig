@@ -3,12 +3,22 @@ const rl = @import("raylib");
 
 const settings = @import("./settings.zig");
 const helper = @import("./helper.zig");
+const game_manager = @import("game_manager.zig");
 
 const move_speed_kb = 10.0;
 const move_speed_mouse = 1.0;
 const scroll_speed = 1.0;
 
 pub fn update(cam: *rl.Camera2D) void {
+    // Toggle Pause 
+    if (rl.IsKeyPressed(rl.KeyboardKey.KEY_P)) {
+        game_manager.game_state = switch (game_manager.game_state) {
+            game_manager.GameState.paused => game_manager.GameState.running,
+            game_manager.GameState.running => game_manager.GameState.paused
+        };
+    }
+
+    // Update Camera
     var movement = getCamMove();
 
     if ((rl.Vector2Equals(movement, rl.Vector2.zero())) != 1) {

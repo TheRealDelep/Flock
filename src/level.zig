@@ -2,14 +2,23 @@ const std = @import("std");
 const rl = @import("raylib");
 const helper = @import("helper.zig");
 const settings = @import("settings.zig");
+const game_manager = @import("game_manager.zig");
 
-const Agent = @import("agent.zig").Agent;
+const agent = @import("agent.zig");
+const Agent = agent.Agent;
 const debug = @import("debug.zig");
 
 pub const size: f32 = 50;
-pub const flock_size = 2;
+pub const flock_size = 25;
 
-pub const attraction_radius = 2.5;
+pub const attraction_radius = 7.5;
+pub const avoidance_radius = 2;
+
+pub const attraction_factor = 2;
+pub const avoidance_factor = 5;
+
+const attraction_color = rl.YELLOW;
+const avoidance_color = rl.RED;
 
 var flock: [flock_size]Agent = undefined;
 var selected_agent: ?*Agent = null;
@@ -18,16 +27,14 @@ var camera: *rl.Camera2D = undefined;
 
 pub fn init(cam: *rl.Camera2D) void {
     camera = cam;
-    // for (&flock) |*agent| {
-    //     const coef = (size - 1) * 2;
-    //     const position = helper.Random.get_vec2(rl.Vector2 {.x = coef, .y = coef});
-    //     const rotation = helper.Random.get_f32() * 360.0;
 
-    //     agent.* = Agent.new(position, rotation, null);
-    // }
+    for (&flock) |*a| {
+        const coef = (size - 1) * 2;
+        const position = helper.random.getVec2(rl.Vector2 {.x = coef, .y = coef});
+        const rotation = helper.random.getF32() * 360.0;
 
-    flock[0] = Agent.new(rl.Vector2{ .x = 0, .y = -2 }, 45, null);
-    flock[1] = Agent.new(rl.Vector2{ .x = 0, .y = -4 }, -45, null);
+        a.* = Agent.new(position, rotation, null);
+    }
 }
 
 pub fn update() void {
@@ -38,82 +45,155 @@ pub fn update() void {
     }
 
     for (&flock) |*self| {
-        defer self.update();
-
         const is_selected = selected_agent == self;
 
-        var bird_count: f32 = 0;
         var center_of_mass = rl.Vector2.zero();
+
+        var attraction_count: f32 = 0;
+        var separation_count: f32 = 0;
+
+        var separation = rl.Vector2.zero();
+        var cohesion = rl.Vector2.zero();
+        var alignment = rl.Vector2.zero();
 
         for (&flock) |*other| {
             if (self == other) {
                 continue;
             }
 
-            if (rl.Vector2.distanceTo(self.position, other.position) < attraction_radius) {
+            const dist = rl.Vector2.distanceTo(self.position, other.position);
+            // Cohesion and Alignment
+            if (dist < attraction_radius) {
                 if (is_selected) {
                     debug.drawShape(debug.Shape {
-                        .color = rl.YELLOW,
+                        .color = attraction_color,
                         .origin = self.position,
                         .kind = .{.line = other.position}
                     });
                 }
 
+                attraction_count += 1.0;
                 center_of_mass = center_of_mass.add(other.position);
-                bird_count += 1.0;
+                alignment = alignment.add(other.velocity);
+            }
+
+            // Separation
+            if (dist < avoidance_radius) {
+                if (is_selected) {
+                    debug.drawShape(debug.Shape {
+                        .color = avoidance_color,
+                        .origin = self.position,
+                        .kind = .{.line = other.position}
+                    });
+                }
+
+                separation_count += 1;
+                const dir = rl.Vector2Subtract(self.position, other.position).normalize();
+                separation = separation.add(helper.vec2.scalarMult(dir, 1 / dist));
             }
         }
 
+        if (attraction_count > 0) {
+            cohesion = rl.Vector2Clamp(
+                center_of_mass
+                    .scale(1 / attraction_count)
+                    .normalize()
+                    .scale(agent.cruise_speed)
+                    .sub(self.velocity)
+                    .scale(rl.GetFrameTime()),
+                agent.max_acceleration_vec.scale(-1),
+                agent.max_acceleration_vec
+            );
+
+            alignment = rl.Vector2Clamp(
+                alignment
+                    .scale(1 / attraction_count)
+                    .normalize()
+                    .scale(agent.cruise_speed)
+                    .sub(self.velocity)
+                    .scale(rl.GetFrameTime()),
+                agent.max_acceleration_vec.scale(-1),
+                agent.max_acceleration_vec
+            );
+        }
+
+        if (separation_count > 0) {
+            separation = rl.Vector2Clamp(
+                separation
+                    .scale(1 / separation_count)
+                    .normalize()
+                    .scale(agent.cruise_speed)
+                    .sub(self.velocity)
+                    .scale(rl.GetFrameTime()),
+                agent.max_acceleration_vec.scale(-1),
+                agent.max_acceleration_vec
+            );
+        }
+
+        // Filnally moves the agent
+        if (game_manager.game_state == game_manager.GameState.running) {
+            self.velocity = self.velocity
+                .add(separation.scale(avoidance_factor))
+                .add(alignment)
+                .add(cohesion.scale(attraction_factor));
+
+            self.velocity = rl.Vector2ClampValue(self.velocity, -agent.max_speed, agent.max_speed);
+            self.update();
+        }
+
+        // Draw debug infos
         if (is_selected) {
             debug.drawShape(debug.Shape {
-                .color = rl.GREEN,
+                .color = attraction_color,
                 .origin = center_of_mass,
-                .kind = .{ .circle = 0.25}
+                .kind = .{ .circle = 0.25 }
+            });
+
+            debug.drawShape(debug.Shape {
+                .color = avoidance_color,
+                .origin = separation,
+                .kind = .{ .circle = 0.25 }
+            });
+
+            debug.drawShape(debug.Shape {
+                .origin = self.position,
+                .color = attraction_color,
+                .kind = .{ .circle = attraction_radius }
+            });
+
+            debug.drawShape(debug.Shape {
+                .origin = self.position,
+                .color = avoidance_color,
+                .kind = .{.circle = avoidance_radius}
             });
         }
-
-        if (bird_count > 0) {
-            self.lookAt(center_of_mass);
-        }
     }
-
-    debugSelectedAgent();
 }
 
 pub fn draw() void {
     drawGrid();
-    for (&flock) |*agent| {
-        agent.draw();
+    for (&flock) |*a| {
+        a.draw();
     }
     debug.draw();
 }
 
 pub fn select_agent(position: rl.Vector2) void {
-    for (&flock) |*agent| {
+    for (&flock) |*a| {
         const bounds = rl.Rectangle {
-            .x = agent.*.position.x - 0.5,
-            .y = agent.*.position.y - 0.5,
+            .x = a.*.position.x - 0.5,
+            .y = a.*.position.y - 0.5,
             .width = 1,
             .height = 1
         };
 
         if (rl.CheckCollisionPointRec(position, bounds)) {
-            selected_agent = agent;    
+            selected_agent = a;    
             return;
         }
     }
 
     selected_agent = null;
-}
-
-fn debugSelectedAgent() void {
-    if (selected_agent) |*agent| {
-        debug.drawShape(debug.Shape {
-            .origin = agent.*.position,
-            .color = rl.YELLOW,
-            .kind = .{ .circle = attraction_radius }
-        });
-    }
 }
 
 fn drawGrid() void {
