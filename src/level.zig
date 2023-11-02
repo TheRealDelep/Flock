@@ -145,16 +145,32 @@ fn drawDebugInfos() void {
         });
     }
 
+    // Draw cohesion circle
     debug.drawShape(debug.Shape {
         .origin = infos.self.position,
         .color = cohesion_color,
         .kind = .{ .circle = flock.cohesion_radius }
     });
 
+    // Draw avoidance circle
     debug.drawShape(debug.Shape {
         .origin = infos.self.position,
         .color = avoidance_color,
         .kind = .{.circle = flock.avoidance_radius}
+    });
+
+    // Draw cohesion target
+    debug.drawShape(debug.Shape {
+        .origin = infos.cohesion_target,
+        .color = cohesion_color,
+        .kind = .{.circle = 0.25}
+    });
+
+    // Draw separation target
+    debug.drawShape(debug.Shape {
+        .origin = infos.separation_target,
+        .color = avoidance_color,
+        .kind = .{.circle = 0.25}
     });
 }
 

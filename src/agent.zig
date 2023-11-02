@@ -91,4 +91,7 @@ pub const AgentDebugInfos = struct {
     alignment_force: rl.Vector2 = rl.Vector2.zero(),
     separation_force: rl.Vector2 = rl.Vector2.zero(),
     bounds_avoidance_force: rl.Vector2 = rl.Vector2.zero(),
+
+    cohesion_target: ?rl.Vector2 = null,
+    separation_target: ?rl.Vector2 = null,
 };

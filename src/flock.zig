@@ -79,12 +79,28 @@ pub const Flock = struct {
             }
 
             if (attraction_count > 0) {
-                cohesion = steerToward(current.velocity, cohesion.scale(1 / attraction_count)).scale(rl.GetFrameTime());
+                const cohesion_target = cohesion.scale(1 / attraction_count);
+
+                if (self.debug_infos) |*infos| {
+                    if (infos.index == current_index) {
+                        infos.cohesion_target = cohesion_target;
+                    }
+                }
+
+                cohesion = steerToward(current.velocity, cohesion_target.sub(current.position)).scale(rl.GetFrameTime());
                 alignment = steerToward(current.velocity, alignment.scale(1 / attraction_count)).scale(rl.GetFrameTime());
             }
 
             if (separation_count > 0) {
-                separation = steerToward(current.velocity, separation.scale(1 / separation_count)).scale(rl.GetFrameTime());
+                const separation_target = separation.scale(1 / separation_count);
+
+                if (self.debug_infos) |*infos| {
+                    if (infos.index == current_index) {
+                        infos.separation_target = separation_target;
+                    }
+                }
+
+                separation = steerToward(current.velocity, separation_target.sub(current.position)).scale(rl.GetFrameTime());
             }
 
             const dist_from_center = current.position.distanceTo(rl.Vector2.zero());
