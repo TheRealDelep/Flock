@@ -41,5 +41,7 @@ pub fn main() void {
         level.draw();
 
         rl.EndMode2D();
+
+        level.draw_screen();
     }
 }

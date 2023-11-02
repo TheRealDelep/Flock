@@ -7,7 +7,8 @@ const helper = @import("helper.zig");
 pub const cruise_speed: f32 = 10;
 pub const max_speed: f32 = 15;
 
-pub const max_acceleration: f32 = 100;
+pub const max_acceleration: f32 = 10;
+pub const base_acceleration: f32 = 5;
 
 pub const max_acceleration_vec = rl.Vector2 {
     .x = max_acceleration,
@@ -36,10 +37,7 @@ pub const Agent = struct {
             .position = position orelse rl.Vector2.zero(),
             .rotation = rotation orelse 0,
             .size = size orelse rl.Vector2.one(),
-            .velocity = blk: {
-                const forward = rl.Vector2Rotate(rl.Vector2 { .x = 0, .y = 1}, rotation orelse 0 * rl.DEG2RAD);
-                break :blk forward.scale(cruise_speed);
-            }
+            .velocity = rl.Vector2.zero()
         };
     }
 
@@ -80,4 +78,17 @@ pub const Agent = struct {
                 .y = self.position.y * settings.ppu_f
             });
     }
+};
+
+pub const AgentDebugInfos = struct {
+    index: usize,
+    self: *Agent,
+
+    in_cohesion_range: std.ArrayList(*Agent),
+    in_avoidance_range: std.ArrayList(*Agent),
+
+    cohesion_force: rl.Vector2 = rl.Vector2.zero(),
+    alignment_force: rl.Vector2 = rl.Vector2.zero(),
+    separation_force: rl.Vector2 = rl.Vector2.zero(),
+    bounds_avoidance_force: rl.Vector2 = rl.Vector2.zero(),
 };

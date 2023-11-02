@@ -5,206 +5,93 @@ const settings = @import("settings.zig");
 const game_manager = @import("game_manager.zig");
 
 const agent = @import("agent.zig");
-const Agent = agent.Agent;
 const debug = @import("debug.zig");
 
+const Agent = agent.Agent;
+const Flock = @import("flock.zig").Flock;
+
 pub const size: f32 = 50;
-pub const level_bounds = rl.Rectangle {
-    .x = 0,
-    .y = 0,
-    .height = size,
-    .width = size
-};
+pub const flock_size = 250;
 
-pub const flock_size = 100;
-
-pub const attraction_radius = 5;
-pub const avoidance_radius = 2;
-
-pub const attraction_factor = 2;
-pub const avoidance_factor = 5;
-pub const bounds_avoidance_factor = 10;
-
-const attraction_color = rl.YELLOW;
+const cohesion_color = rl.YELLOW;
 const avoidance_color = rl.RED;
 
-var flock: [flock_size]Agent = undefined;
-var selected_agent: ?*Agent = null;
-
 var camera: *rl.Camera2D = undefined;
+var flock: Flock = undefined;
 
 pub fn init(cam: *rl.Camera2D) void {
     camera = cam;
+    var agents = std.heap.page_allocator.create([flock_size]Agent) catch unreachable;
 
-    for (&flock) |*a| {
+    for (agents) |*a| {
         const coef = (size - 1) * 2;
         const position = helper.random.getVec2(rl.Vector2 {.x = coef, .y = coef});
         const rotation = helper.random.getF32() * 360.0;
 
         a.* = Agent.new(position, rotation, null);
     }
+
+    flock = Flock {
+        .agents = agents,
+        .level_size = size
+    };
 }
 
 pub fn update() void {
     if (rl.IsMouseButtonPressed(rl.MouseButton.MOUSE_BUTTON_LEFT)) {
-        select_agent(helper.vec2.scalarMult(
-            rl.GetScreenToWorld2D(rl.GetMousePosition(), camera.*), 
-            1 / settings.ppu_f));
+        select_agent(rl.GetScreenToWorld2D(rl.GetMousePosition(), camera.*).scale(1 / settings.ppu_f));
     }
 
-    for (&flock) |*self| {
-        const is_selected = selected_agent == self;
-
-        var center_of_mass = rl.Vector2.zero();
-
-        var attraction_count: f32 = 0;
-        var separation_count: f32 = 0;
-
-        var separation = rl.Vector2.zero();
-        var cohesion = rl.Vector2.zero();
-        var alignment = rl.Vector2.zero();
-        var bounds_avoidance = rl.Vector2.zero();
-
-        for (&flock) |*other| {
-            if (self == other) {
-                continue;
-            }
-
-            const dist = rl.Vector2.distanceTo(self.position, other.position);
-            // Cohesion and Alignment
-            if (dist < attraction_radius) {
-                if (is_selected) {
-                    debug.drawShape(debug.Shape {
-                        .color = attraction_color,
-                        .origin = self.position,
-                        .kind = .{.line = other.position}
-                    });
-                }
-
-                attraction_count += 1.0;
-                center_of_mass = center_of_mass.add(other.position);
-                alignment = alignment.add(other.velocity);
-            }
-
-            // Separation
-            if (dist < avoidance_radius) {
-                if (is_selected) {
-                    debug.drawShape(debug.Shape {
-                        .color = avoidance_color,
-                        .origin = self.position,
-                        .kind = .{.line = other.position}
-                    });
-                }
-
-                separation_count += 1;
-                const dir = rl.Vector2Subtract(self.position, other.position).normalize();
-                separation = separation.add(dir.scale(1 / dist));
-            }
-        }
-
-        if (attraction_count > 0) {
-            cohesion = rl.Vector2Clamp(
-                center_of_mass
-                    .scale(1 / attraction_count)
-                    .normalize()
-                    .scale(agent.cruise_speed)
-                    .sub(self.velocity)
-                    .scale(rl.GetFrameTime()),
-                agent.max_acceleration_vec.scale(-1),
-                agent.max_acceleration_vec
-            );
-
-            alignment = rl.Vector2Clamp(
-                alignment
-                    .scale(1 / attraction_count)
-                    .normalize()
-                    .scale(agent.cruise_speed)
-                    .sub(self.velocity)
-                    .scale(rl.GetFrameTime()),
-                agent.max_acceleration_vec.scale(-1),
-                agent.max_acceleration_vec
-            );
-        }
-
-        if (separation_count > 0) {
-            separation = rl.Vector2Clamp(
-                separation
-                    .scale(1 / separation_count)
-                    .normalize()
-                    .scale(agent.cruise_speed)
-                    .sub(self.velocity)
-                    .scale(rl.GetFrameTime()),
-                agent.max_acceleration_vec.scale(-1),
-                agent.max_acceleration_vec
-            );
-        }
-
-        const dist_from_center = self.position.distanceTo(rl.Vector2.zero());
-
-        if (dist_from_center > size - avoidance_radius) {
-            bounds_avoidance = rl.Vector2Clamp(
-                self.position
-                    .scale(-1)
-                    .normalize()
-                    .scale(agent.cruise_speed)
-                    .sub(self.velocity)
-                    .scale(rl.GetFrameTime()),
-                agent.max_acceleration_vec.scale(-1),
-                agent.max_acceleration_vec
-            );
-        }
-
-        // Filnally moves the agent
-        if (game_manager.game_state == game_manager.GameState.running) {
-            self.velocity = self.velocity
-                .add(separation.scale(avoidance_factor))
-                .add(alignment)
-                .add(cohesion.scale(attraction_factor))
-                .add(bounds_avoidance.scale(bounds_avoidance_factor));
-
-            self.velocity = rl.Vector2ClampValue(self.velocity, -agent.max_speed, agent.max_speed);
-            self.update();
-        }
-
-        // Draw debug infos
-        if (is_selected) {
-            debug.drawShape(debug.Shape {
-                .color = attraction_color,
-                .origin = center_of_mass,
-                .kind = .{ .circle = 0.25 }
-            });
-
-            debug.drawShape(debug.Shape {
-                .color = avoidance_color,
-                .origin = separation,
-                .kind = .{ .circle = 0.25 }
-            });
-
-            debug.drawShape(debug.Shape {
-                .origin = self.position,
-                .color = attraction_color,
-                .kind = .{ .circle = attraction_radius }
-            });
-
-            debug.drawShape(debug.Shape {
-                .origin = self.position,
-                .color = avoidance_color,
-                .kind = .{.circle = avoidance_radius}
-            });
-        }
+    if (rl.IsMouseButtonPressed(rl.MouseButton.MOUSE_BUTTON_RIGHT)) {
+        flock.target = rl.GetScreenToWorld2D(rl.GetMousePosition(), camera.*).scale(1 / settings.ppu_f);
     }
+
+    flock.update();
+    drawDebugInfos();
 }
 
 pub fn draw() void {
     drawGrid();
-    for (&flock) |*a| {
-        a.draw();
-    }
+
+    debug.drawShape(debug.Shape {
+       .origin = flock.target,
+       .color =  .{ .r = 0, .g = 255, .b = 255, .a = 255 },
+       .kind = .{.circle = 0.25}
+    });
+
+    flock.draw();
     debug.draw();
 }
 
+pub fn draw_screen() void {
+    if (flock.debug_infos) |infos| {
+        const allocator = std.heap.page_allocator;
+        
+        const position_txt = std.fmt.allocPrintZ(allocator, "position: ({d}, {d})", infos.self.position) catch unreachable;
+        const velocity_txt = std.fmt.allocPrintZ(allocator, "velocity: ({d}, {d})", infos.self.velocity) catch unreachable;
+        const cohesion_txt = std.fmt.allocPrintZ(allocator, "cohesion: ({d}, {d})", infos.cohesion_force) catch unreachable;
+        const alignment_txt = std.fmt.allocPrintZ(allocator, "alignment: ({d}, {d})", infos.alignment_force) catch unreachable;
+        const separation_txt = std.fmt.allocPrintZ(allocator, "separation: ({d}, {d})", infos.separation_force) catch unreachable;
+        const bounds_avoidance_txt = std.fmt.allocPrintZ(allocator, "bounds avoidance: ({d}, {d})", infos.bounds_avoidance_force) catch unreachable;
+
+        defer allocator.free(position_txt);
+        defer allocator.free(velocity_txt);
+        defer allocator.free(cohesion_txt);
+        defer allocator.free(alignment_txt);
+        defer allocator.free(separation_txt);
+        defer allocator.free(bounds_avoidance_txt);
+
+        rl.DrawText(position_txt, 20, 20, 14, rl.GREEN);
+        rl.DrawText(velocity_txt, 20, 40, 14, rl.GREEN);
+        rl.DrawText(cohesion_txt, 20, 60, 14, rl.GREEN);
+        rl.DrawText(alignment_txt, 20, 80, 14, rl.GREEN);
+        rl.DrawText(separation_txt, 20, 100, 14, rl.GREEN);
+        rl.DrawText(bounds_avoidance_txt, 20, 120, 14, rl.GREEN);
+    }
+}
+
 pub fn select_agent(position: rl.Vector2) void {
-    for (&flock) |*a| {
+    for (flock.agents, 0..) |*a, index| {
         const bounds = rl.Rectangle {
             .x = a.*.position.x - 0.5,
             .y = a.*.position.y - 0.5,
@@ -213,12 +100,62 @@ pub fn select_agent(position: rl.Vector2) void {
         };
 
         if (rl.CheckCollisionPointRec(position, bounds)) {
-            selected_agent = a;    
+            flock.debug_infos = agent.AgentDebugInfos {
+                .self = a,
+                .index = index,
+
+                .in_cohesion_range = std.ArrayList(*Agent).init(std.heap.page_allocator),
+                .in_avoidance_range = std.ArrayList(*Agent).init(std.heap.page_allocator),
+            };
             return;
         }
     }
 
-    selected_agent = null;
+    if (flock.debug_infos) |*infos| {
+        infos.in_cohesion_range.deinit();
+        infos.in_avoidance_range.deinit();
+    }
+
+    flock.debug_infos = null;
+}
+
+fn drawDebugInfos() void {
+    var infos: agent.AgentDebugInfos = undefined;
+    if (flock.debug_infos) |*i| {
+        infos = i.*;
+    } else {
+        return;
+    }
+
+    // Draw a line toward agents in cohesion range
+    for (infos.in_cohesion_range.items) |a| {
+        debug.drawShape(debug.Shape { 
+            .color = cohesion_color, 
+            .origin = infos.self.position, 
+            .kind = .{ .line = a.position }
+        });
+    }
+
+    // Draw a line towards agents in avoidance range
+    for (infos.in_avoidance_range.items) |a| {
+        debug.drawShape(debug.Shape { 
+            .color = avoidance_color, 
+            .origin = infos.self.position, 
+            .kind = .{ .line = a.position }
+        });
+    }
+
+    debug.drawShape(debug.Shape {
+        .origin = infos.self.position,
+        .color = cohesion_color,
+        .kind = .{ .circle = flock.cohesion_radius }
+    });
+
+    debug.drawShape(debug.Shape {
+        .origin = infos.self.position,
+        .color = avoidance_color,
+        .kind = .{.circle = flock.avoidance_radius}
+    });
 }
 
 fn drawGrid() void {
