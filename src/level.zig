@@ -1,5 +1,6 @@
 const std = @import("std");
 const rl = @import("raylib");
+const rlgui = @import("raygui");
 const helper = @import("helper.zig");
 const settings = @import("settings.zig");
 const game_manager = @import("game_manager.zig");
@@ -10,8 +11,10 @@ const debug = @import("debug.zig");
 const Agent = agent.Agent;
 const Flock = @import("flock.zig").Flock;
 
+var sliders_area: rl.Rectangle = undefined;
+
 pub const size: f32 = 50;
-pub const flock_size = 250;
+pub const flock_size = 100;
 
 const cohesion_color = rl.YELLOW;
 const avoidance_color = rl.RED;
@@ -21,6 +24,14 @@ var flock: Flock = undefined;
 
 pub fn init(cam: *rl.Camera2D) void {
     camera = cam;
+
+    sliders_area = rl.Rectangle {
+        .height = 155,
+        .width = 250,
+        .x = @as(f32, @floatFromInt(settings.resolution.Width)) - 250,
+        .y = 0 
+    };
+
     var agents = std.heap.page_allocator.create([flock_size]Agent) catch unreachable;
 
     for (agents) |*a| {
@@ -39,7 +50,12 @@ pub fn init(cam: *rl.Camera2D) void {
 
 pub fn update() void {
     if (rl.IsMouseButtonPressed(rl.MouseButton.MOUSE_BUTTON_LEFT)) {
-        select_agent(rl.GetScreenToWorld2D(rl.GetMousePosition(), camera.*).scale(1 / settings.ppu_f));
+        const mouse_screen_pos = rl.GetMousePosition();
+
+        const is_clicking_ui = rl.CheckCollisionPointRec(mouse_screen_pos, sliders_area);
+        if (!is_clicking_ui) {
+            select_agent(rl.GetScreenToWorld2D(rl.GetMousePosition(), camera.*).scale(1 / settings.ppu_f));
+        }
     }
 
     if (rl.IsMouseButtonPressed(rl.MouseButton.MOUSE_BUTTON_RIGHT)) {
@@ -64,9 +80,9 @@ pub fn draw() void {
 }
 
 pub fn draw_screen() void {
+    const allocator = std.heap.page_allocator;
+
     if (flock.debug_infos) |infos| {
-        const allocator = std.heap.page_allocator;
-        
         const position_txt = std.fmt.allocPrintZ(allocator, "position: ({d}, {d})", infos.self.position) catch unreachable;
         const velocity_txt = std.fmt.allocPrintZ(allocator, "velocity: ({d}, {d})", infos.self.velocity) catch unreachable;
         const cohesion_txt = std.fmt.allocPrintZ(allocator, "cohesion: ({d}, {d})", infos.cohesion_force) catch unreachable;
@@ -87,7 +103,82 @@ pub fn draw_screen() void {
         rl.DrawText(alignment_txt, 20, 80, 14, rl.GREEN);
         rl.DrawText(separation_txt, 20, 100, 14, rl.GREEN);
         rl.DrawText(bounds_avoidance_txt, 20, 120, 14, rl.GREEN);
-    }
+    } 
+
+    // UI sliders and stuffs
+    rl.DrawRectangleRec(sliders_area, rl.LIGHTGRAY);
+    
+    const cohesion_radius_txt = std.fmt.allocPrintZ(allocator, "{d}", .{flock.cohesion_radius}) catch unreachable;
+    const avoidance_radius_txt = std.fmt.allocPrintZ(allocator, "{d}", .{flock.avoidance_radius}) catch unreachable;
+    const cohesion_factor_txt = std.fmt.allocPrintZ(allocator, "{d}", .{flock.cohesion_factor}) catch unreachable;
+    const alignment_factor_txt = std.fmt.allocPrintZ(allocator, "{d}", .{flock.alignment_factor}) catch unreachable;
+    const avoidance_factor_txt = std.fmt.allocPrintZ(allocator, "{d}", .{flock.avoidance_factor}) catch unreachable;
+    const bounds_avoidance_factor_txt = std.fmt.allocPrintZ(allocator, "{d}", .{flock.bounds_avoidance_factor}) catch unreachable;
+    const target_factor_txt = std.fmt.allocPrintZ(allocator, "{d}", .{flock.target_factor}) catch unreachable;
+
+    defer allocator.free(cohesion_radius_txt);
+    defer allocator.free(avoidance_radius_txt);
+    defer allocator.free(cohesion_factor_txt);
+    defer allocator.free(alignment_factor_txt);
+    defer allocator.free(avoidance_factor_txt);
+    defer allocator.free(bounds_avoidance_factor_txt);
+    defer allocator.free(target_factor_txt);
+
+    _= rlgui.GuiSlider(
+        .{.height = 15, .width = 100, .x = @as(f32, @floatFromInt(settings.resolution.Width)) - 150, .y = 10},
+        "Cohesion Radius",
+        cohesion_radius_txt,
+        &flock.cohesion_radius,
+        0, 10 
+    );
+    
+    _= rlgui.GuiSlider(
+        .{.height = 15, .width = 100, .x = @as(f32, @floatFromInt(settings.resolution.Width)) - 150, .y = 30},
+        "Avoidance Radius",
+        avoidance_radius_txt,
+        &flock.avoidance_radius,
+        0, 10 
+    );
+
+    _= rlgui.GuiSlider(
+        .{.height = 15, .width = 100, .x = @as(f32, @floatFromInt(settings.resolution.Width)) - 150, .y = 50},
+        "Cohesion Factor",
+        cohesion_factor_txt,
+        &flock.cohesion_factor,
+        0, 10 
+    );
+
+    _= rlgui.GuiSlider(
+        .{.height = 15, .width = 100, .x = @as(f32, @floatFromInt(settings.resolution.Width)) - 150, .y = 70},
+        "Avoidance Factor",
+        avoidance_factor_txt,
+        &flock.avoidance_factor,
+        0, 10 
+    );
+
+    _= rlgui.GuiSlider(
+        .{.height = 15, .width = 100, .x = @as(f32, @floatFromInt(settings.resolution.Width)) - 150, .y = 90},
+        "Bounds Factor",
+        bounds_avoidance_factor_txt,
+        &flock.bounds_avoidance_factor,
+        0, 10 
+    );
+
+    _= rlgui.GuiSlider(
+        .{.height = 15, .width = 100, .x = @as(f32, @floatFromInt(settings.resolution.Width)) - 150, .y = 110},
+        "Target Factor",
+        target_factor_txt,
+        &flock.target_factor,
+        0, 10 
+    );
+
+    _= rlgui.GuiSlider(
+        .{.height = 15, .width = 100, .x = @as(f32, @floatFromInt(settings.resolution.Width)) - 150, .y = 130},
+        "Alignment Factor",
+        alignment_factor_txt,
+        &flock.alignment_factor,
+        0, 10 
+    );
 }
 
 pub fn select_agent(position: rl.Vector2) void {
@@ -160,18 +251,23 @@ fn drawDebugInfos() void {
     });
 
     // Draw cohesion target
-    debug.drawShape(debug.Shape {
-        .origin = infos.cohesion_target,
-        .color = cohesion_color,
-        .kind = .{.circle = 0.25}
-    });
+    if (infos.cohesion_target) |target| {
+        debug.drawShape(debug.Shape {
+            .origin = target,
+            .color = cohesion_color,
+            .kind = .{.circle = 0.25}
+        });
+    }
 
     // Draw separation target
-    debug.drawShape(debug.Shape {
-        .origin = infos.separation_target,
-        .color = avoidance_color,
-        .kind = .{.circle = 0.25}
-    });
+    if (infos.separation_target) |target| {
+        debug.drawShape(debug.Shape {
+            .origin = target,
+            .color = avoidance_color,
+            .kind = .{.circle = 0.25}
+        });
+    }
+    
 }
 
 fn drawGrid() void {

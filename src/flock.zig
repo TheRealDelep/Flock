@@ -8,12 +8,14 @@ pub const Flock = struct {
     target: rl.Vector2 = rl.Vector2.zero(),
 
     cohesion_radius: f32 = 5,
-    avoidance_radius: f32 = 1.5,
+    avoidance_radius: f32 = 1,
 
-    attraction_factor: f32 = 1,
-    avoidance_factor: f32 = 2,
+    cohesion_factor: f32 = 1,
+    avoidance_factor: f32 = 2.5,
+    alignment_factor: f32 = 2,
     target_factor: f32 = 1,
     bounds_avoidance_factor: f32 = 10,
+    normal_acceleration_factor: f32 = 0.5,
 
     level_size: f32 = 0,
 
@@ -41,7 +43,7 @@ pub const Flock = struct {
                     continue;
                 }
 
-                const dist = rl.Vector2.distanceTo(current.position, other.position);
+                const dist = current.position.distanceTo(other.position);
 
                 // Ignore agent behind
                 const dot = rl.Vector2DotProduct(
@@ -49,7 +51,7 @@ pub const Flock = struct {
                     other.position.sub(current.position).normalize()
                 );
 
-                if (dot < -0.25) {
+                if (dot < -0.75) {
                     continue;
                 }
 
@@ -73,34 +75,22 @@ pub const Flock = struct {
                         }
                     }
                     separation_count += 1;
-                    const dir = rl.Vector2Subtract(current.position, other.position).normalize();
-                    separation = separation.add(dir.scale(1 / dist));
+                    const dir = current.position.sub(other.position).normalize();
+                    separation = separation.add((dir.scale(1 / dist)));
                 }
             }
 
+            var cohesion_target = rl.Vector2.zero();
             if (attraction_count > 0) {
-                const cohesion_target = cohesion.scale(1 / attraction_count);
-
-                if (self.debug_infos) |*infos| {
-                    if (infos.index == current_index) {
-                        infos.cohesion_target = cohesion_target;
-                    }
-                }
-
-                cohesion = steerToward(current.velocity, cohesion_target.sub(current.position)).scale(rl.GetFrameTime());
+                cohesion_target = center_of_mass.scale(1 / attraction_count);
+                cohesion = steerToward(current.velocity, cohesion_target).scale(rl.GetFrameTime());
                 alignment = steerToward(current.velocity, alignment.scale(1 / attraction_count)).scale(rl.GetFrameTime());
             }
 
+            var separation_target = rl.Vector2.zero();
             if (separation_count > 0) {
-                const separation_target = separation.scale(1 / separation_count);
-
-                if (self.debug_infos) |*infos| {
-                    if (infos.index == current_index) {
-                        infos.separation_target = separation_target;
-                    }
-                }
-
-                separation = steerToward(current.velocity, separation_target.sub(current.position)).scale(rl.GetFrameTime());
+                separation_target = separation.scale(1 / separation_count);
+                separation = steerToward(current.velocity, separation_target).scale(rl.GetFrameTime());
             }
 
             const dist_from_center = current.position.distanceTo(rl.Vector2.zero());
@@ -117,6 +107,8 @@ pub const Flock = struct {
                     infos.*.alignment_force = alignment;
                     infos.*.separation_force = separation;
                     infos.*.bounds_avoidance_force = bounds_avoidance;
+                    infos.*.cohesion_target = if (attraction_count > 0) cohesion_target else null;
+                    infos.*.separation_target = if (separation_count > 0) separation_target else null;
                 }
             }
 
@@ -125,18 +117,11 @@ pub const Flock = struct {
                 const forward = rl.Vector2Rotate(rl.Vector2 {.x = 0, .y = 1}, current.rotation * rl.DEG2RAD);
                 current.velocity = current.velocity
                     .add(separation.scale(self.avoidance_factor))
-                    .add(alignment)
-                    .add(cohesion.scale(self.attraction_factor))
+                    .add(alignment.scale(self.alignment_factor))
+                    .add(cohesion.scale(self.cohesion_factor))
                     .add(bounds_avoidance.scale(self.bounds_avoidance_factor))
                     .add(target_attraction.scale(self.target_factor))
-                    .add(forward
-                        .normalize()
-                        .scale(agent.base_acceleration * rl.GetFrameTime())
-                        .scale(switch (current.velocity.length() > agent.cruise_speed) {
-                            true => -1,
-                            false => 1
-                        })
-                    );
+                    .add(forward.scale(agent.base_acceleration * self.normal_acceleration_factor).scale(rl.GetFrameTime()));
 
                 current.velocity = rl.Vector2ClampValue(current.velocity, -agent.max_speed, agent.max_speed);
                 current.update();
