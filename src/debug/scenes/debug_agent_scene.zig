@@ -1,12 +1,20 @@
 const rl = @import("raylib");
-const settings = @import("settings.zig");
+const settings = @import("../../settings.zig");
 
-const Agent = @import("agent.zig").Agent;
+const Agent = @import("../../entities/agent.zig").Agent;
+const Scene = @import("../../scene.zig").Scene;
 
 var agent: Agent = Agent.new(null, null, null);
 var camera: *rl.Camera2D = undefined;
 
 var is_pause = true;
+
+pub const scene = Scene {
+   .initFn = init,
+   .updateFn = update,
+   .camDrawFn = draw,
+   .screenDrawFn = null
+};
 
 pub fn init(cam: *rl.Camera2D) void {
     camera = cam;

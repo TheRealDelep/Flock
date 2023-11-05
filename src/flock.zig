@@ -1,7 +1,7 @@
 const rl = @import("raylib");
 const game_manager = @import("game_manager.zig");
 
-const agent = @import("agent.zig");
+const agent = @import("./entities/agent.zig");
 const Agent = agent.Agent;
 
 pub const Flock = struct {
@@ -19,7 +19,7 @@ pub const Flock = struct {
 
     level_size: f32 = 0,
 
-    agents: []Agent = undefined,
+    agents: []Agent,
     debug_infos: ?agent.AgentDebugInfos = null,
 
     pub fn update(self: *Flock) void {

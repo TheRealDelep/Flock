@@ -1,9 +1,9 @@
 const std = @import("std");
 const rl = @import("raylib");
 
-const settings = @import("./settings.zig");
-const helper = @import("./helper.zig");
-const game_manager = @import("game_manager.zig");
+const settings = @import("../settings.zig");
+const helper = @import("../helper.zig");
+const game_manager = @import("../game_manager.zig");
 
 const move_speed_kb = 10.0;
 const move_speed_mouse = 1.0;

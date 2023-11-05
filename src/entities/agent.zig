@@ -1,8 +1,7 @@
 const std = @import("std");
 const rl = @import("raylib");
-const settings = @import("./settings.zig");
-const level = @import("level.zig");
-const helper = @import("helper.zig");
+const settings = @import("../settings.zig");
+const helper = @import("../helper.zig");
 
 pub const max_speed: f32 = 15;
 pub const cruise_speed: f32 = 10;

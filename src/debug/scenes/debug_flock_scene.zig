@@ -1,15 +1,17 @@
 const std = @import("std");
 const rl = @import("raylib");
 const rlgui = @import("raygui");
-const helper = @import("helper.zig");
-const settings = @import("settings.zig");
-const game_manager = @import("game_manager.zig");
+const helper = @import("../../helper.zig");
+const settings = @import("../../settings.zig");
+const game_manager = @import("../../game_manager.zig");
 
-const agent = @import("agent.zig");
-const debug = @import("debug.zig");
+const Scene = @import("../../scene.zig").Scene;
+
+const agent = @import("../../entities/agent.zig");
+const debug = @import("../debug_drawer.zig");
 
 const Agent = agent.Agent;
-const Flock = @import("flock.zig").Flock;
+const Flock = @import("../../flock.zig").Flock;
 
 var sliders_area: rl.Rectangle = undefined;
 
@@ -21,6 +23,13 @@ const avoidance_color = rl.RED;
 
 var camera: *rl.Camera2D = undefined;
 var flock: Flock = undefined;
+
+pub var scene = Scene {
+    .initFn = init,
+    .updateFn = update,
+    .camDrawFn = draw,
+    .screenDrawFn = draw_screen,
+};
 
 pub fn init(cam: *rl.Camera2D) void {
     camera = cam;

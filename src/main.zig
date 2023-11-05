@@ -1,14 +1,10 @@
 const std = @import("std");
 const rl = @import("raylib");
 
-const helper = @import("helper.zig");
 const settings = @import("settings.zig");
-const level = @import("player_level.zig");
-const debug = @import("debug.zig");
+const debug = @import("debug/debug_drawer.zig");
 
-const Agent = @import("./agent.zig").Agent;
-const Controller = @import("./controller.zig");
-
+const controller = @import("./debug/debug_controller.zig");
 
 pub fn main() void {
     rl.SetConfigFlags(rl.ConfigFlags{ .FLAG_WINDOW_RESIZABLE = true });
@@ -25,10 +21,13 @@ pub fn main() void {
 
     debug.init(std.heap.page_allocator);
 
+    var current_scene = @import("./debug//scenes/debug_player_scene.zig").scene;
+    if (current_scene.initFn) |init| { init(&cam); }
+
     while (!rl.WindowShouldClose()) {
         // --- UPDATE ---
-        Controller.update(&cam);
-        level.update();
+        controller.update(&cam);
+        if (current_scene.updateFn) |update| { update(); }
 
         // --- Draw ---
         rl.BeginDrawing();
@@ -37,8 +36,9 @@ pub fn main() void {
         rl.ClearBackground(rl.BLACK);
 
         rl.BeginMode2D(cam);
-        level.draw();
+        if (current_scene.camDrawFn) |draw| { draw(); }
 
         rl.EndMode2D();
+        if (current_scene.screenDrawFn) |draw| { draw(); }
     }
 }

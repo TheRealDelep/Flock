@@ -1,8 +1,8 @@
 const std = @import("std");
 const rl = @import("raylib");
 
-const settings = @import("settings.zig");
-const helper = @import("helper.zig");
+const settings = @import("../settings.zig");
+const helper = @import("../helper.zig");
 
 pub const ShapeTag = enum {
     line,
