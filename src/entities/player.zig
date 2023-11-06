@@ -39,6 +39,7 @@ pub fn update() void {
     });
 
     entity.position = entity.position.add(direction.scale(max_speed * rl.GetFrameTime()));
+    camera.*.target = entity.position.scale(settings.ppu_f);
 
     var forward = rl.Vector2Normalize(rl.Vector2 {
         .x = rl.GetGamepadAxisMovement(0, rl.GamepadAxis.GAMEPAD_AXIS_RIGHT_X),
