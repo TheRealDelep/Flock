@@ -1,6 +1,7 @@
 const std = @import("std");
 const rl = @import("raylib");
 
+const Flock = @import("../flock.zig");
 const settings = @import("../settings.zig");
 const Entity = @import("./entity.zig").Entity;
 const Bullet = @import("../bullet_pool.zig").Bullet;
@@ -23,7 +24,7 @@ var size: rl.Vector2 = rl.Vector2 {.x = 2, .y = 2};
 var camera: *rl.Camera2D = undefined;
 
 var time_since_last_bullet: f32 = 0;
-var bullet_pool: BulletPool = undefined;
+pub var bullet_pool: BulletPool = undefined;
 
 pub fn init(allocator: std.mem.Allocator, cam: *rl.Camera2D) void {
     camera = cam;

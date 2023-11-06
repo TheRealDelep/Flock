@@ -2,6 +2,7 @@ const rl = @import("raylib");
 const game_manager = @import("game_manager.zig");
 
 const agent = @import("./entities/agent.zig");
+const bullet_pool = @import("./bullet_pool.zig");
 const Agent = agent.Agent;
 
 pub const Flock = struct {
@@ -22,6 +23,8 @@ pub const Flock = struct {
     agents: []Agent,
     debug_infos: ?agent.AgentDebugInfos = null,
 
+    bullet_pool: *bullet_pool.BulletPool = undefined,
+
     pub fn update(self: *Flock) void {
         if (self.debug_infos) |*infos| {
             infos.in_cohesion_range.clearRetainingCapacity();
@@ -29,6 +32,19 @@ pub const Flock = struct {
         }
 
         for (self.agents, 0..) |*current, current_index| {
+            if (!current.entity.is_active) {
+                continue;
+            }
+
+            for (self.bullet_pool.bullets) |*bullet| {
+                if (bullet.*.entity.is_active) {
+                    if (current.hasPoint(bullet.*.entity.position)) {
+                        current.entity.is_active = false;
+                        bullet.entity.is_active = false;
+                    } 
+                } 
+            }
+
             var attraction_count: f32 = 0;
             var separation_count: f32 = 0;
 
@@ -43,12 +59,12 @@ pub const Flock = struct {
                     continue;
                 }
 
-                const dist = current.position.distanceTo(other.position);
+                const dist = current.entity.position.distanceTo(other.entity.position);
 
                 // Ignore agent behind
                 const dot = rl.Vector2DotProduct(
                     current.velocity.normalize(), 
-                    other.position.sub(current.position).normalize()
+                    other.entity.position.sub(current.entity.position).normalize()
                 );
 
                 if (dot < -0.75) {
@@ -63,7 +79,7 @@ pub const Flock = struct {
                         }
                     }
                     attraction_count += 1.0;
-                    center_of_mass = center_of_mass.add(other.position);
+                    center_of_mass = center_of_mass.add(other.entity.position);
                     alignment = alignment.add(other.velocity);
                 }
 
@@ -75,7 +91,7 @@ pub const Flock = struct {
                         }
                     }
                     separation_count += 1;
-                    const dir = current.position.sub(other.position).normalize();
+                    const dir = current.entity.position.sub(other.entity.position).normalize();
                     separation = separation.add((dir.scale(1 / dist)));
                 }
             }
@@ -93,13 +109,13 @@ pub const Flock = struct {
                 separation = steerToward(current.velocity, separation_target).scale(rl.GetFrameTime());
             }
 
-            const dist_from_center = current.position.distanceTo(rl.Vector2.zero());
+            const dist_from_center = current.entity.position.distanceTo(rl.Vector2.zero());
 
             if (dist_from_center > self.level_size - self.avoidance_radius) {
-                bounds_avoidance = steerToward(current.velocity, current.position.scale(-1)).scale(rl.GetFrameTime());
+                bounds_avoidance = steerToward(current.velocity, current.entity.position.scale(-1)).scale(rl.GetFrameTime());
             }
 
-            const target_attraction = steerToward(current.velocity, self.target.sub(current.position)).scale(rl.GetFrameTime());
+            const target_attraction = steerToward(current.velocity, self.target.sub(current.entity.position)).scale(rl.GetFrameTime());
 
             if (self.debug_infos) |*infos| {
                 if (infos.index == current_index) {
@@ -114,7 +130,7 @@ pub const Flock = struct {
 
             // Apply forces and move agent 
             if (game_manager.game_state == game_manager.GameState.running) {
-                const forward = rl.Vector2Rotate(rl.Vector2 {.x = 0, .y = 1}, current.rotation * rl.DEG2RAD);
+                const forward = rl.Vector2Rotate(rl.Vector2 {.x = 0, .y = 1}, current.entity.rotation * rl.DEG2RAD);
                 current.velocity = current.velocity
                     .add(separation.scale(self.avoidance_factor))
                     .add(alignment.scale(self.alignment_factor))
@@ -131,7 +147,9 @@ pub const Flock = struct {
 
     pub fn draw(self: *Flock) void {
         for (self.agents) |*a| {
-            a.draw();
+            if (a.entity.is_active) {
+                a.draw();
+            }
         }
     }
 };

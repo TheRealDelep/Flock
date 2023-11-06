@@ -20,8 +20,8 @@ var flock: Flock = undefined;
 
 pub fn init(camera: *rl.Camera2D) void {
     arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-
     var agents = arena.allocator().alloc(entities.Agent, flock_size) catch unreachable;
+
     for (agents) |*a| {
         const coef = (level_size - 1) * 2;
         const position = helper.random.getVec2(rl.Vector2 {.x = coef, .y = coef});
@@ -30,18 +30,19 @@ pub fn init(camera: *rl.Camera2D) void {
         a.* = entities.Agent.new(position, rotation, null);
     }
 
+    player.init(arena.allocator(), camera);
+    player.entity.position = rl.Vector2.zero();
+
     flock = Flock {
         .level_size = level_size,
-        .agents = agents
+        .agents = agents,
+        .bullet_pool = &player.bullet_pool
     };
-
-    player.init(arena.allocator(), camera);
 }
 
 pub fn update() void {
     player.update();
     flock.target = player.entity.position; 
-
     flock.update();
 }
 

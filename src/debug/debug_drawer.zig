@@ -7,7 +7,8 @@ const helper = @import("../helper.zig");
 pub const ShapeTag = enum {
     line,
     rectangle,
-    circle
+    circle,
+    triangle
 };
 
 pub const Shape = struct {
@@ -17,7 +18,8 @@ pub const Shape = struct {
     kind: union (ShapeTag) {
         line: rl.Vector2,
         rectangle: struct { width: f32, height: f32 },
-        circle: f32
+        circle: f32,
+        triangle: struct { p1: rl.Vector2, p2: rl.Vector2, p3: rl.Vector2 }
     }
 };
 
@@ -52,6 +54,12 @@ pub fn draw() void {
                 @as(i32, @intFromFloat(shape.origin.x * settings.ppu_f)), 
                 @as(i32, @intFromFloat(shape.origin.y * settings.ppu_f)), 
                 radius * settings.ppu_f,
+                shape.color
+            ),
+            ShapeTag.triangle => |points| rl.DrawTriangle(
+                points.p1.scale(settings.ppu_f), 
+                points.p2.scale(settings.ppu_f), 
+                points.p3.scale(settings.ppu_f), 
                 shape.color
             )
         }    

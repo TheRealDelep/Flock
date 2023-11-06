@@ -33,6 +33,8 @@ pub fn main() void {
         rl.BeginDrawing();
         defer rl.EndDrawing();
 
+        debug.draw();
+
         rl.ClearBackground(rl.BLACK);
 
         rl.BeginMode2D(cam);
