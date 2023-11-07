@@ -7,12 +7,13 @@ const player = @import("../../entities/player.zig");
 const Flock = @import("../../flock.zig").Flock;
 
 const level_size = 200;
-const flock_size = 250;
+const flock_size = 1000;
 
 pub const scene = @import("../../scene.zig").Scene {
     .initFn = init,
     .updateFn = update,
-    .camDrawFn = draw
+    .camDrawFn = draw,
+    .screenDrawFn = drawScreen,
 };
 
 var arena: std.heap.ArenaAllocator = undefined;
@@ -49,4 +50,8 @@ pub fn update() void {
 pub fn draw() void {
     flock.draw();
     player.draw();
+}
+
+pub fn drawScreen() void {
+    flock.drawScreen();
 }

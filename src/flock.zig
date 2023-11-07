@@ -1,9 +1,20 @@
+const std = @import("std");
 const rl = @import("raylib");
 const game_manager = @import("game_manager.zig");
 
 const agent = @import("./entities/agent.zig");
 const bullet_pool = @import("./bullet_pool.zig");
 const Agent = agent.Agent;
+
+const danger_zone_initial_radius: f32 = 8;
+const danger_zone_lifespan: f32 = 2;
+const danger_zone_shrink_speed = danger_zone_initial_radius / danger_zone_lifespan;
+
+pub const DangerZone = struct {
+    position: rl.Vector2 = rl.Vector2.zero(),
+    is_active: bool = false,
+    radius: f32 = 0
+};
 
 pub const Flock = struct {
     target: rl.Vector2 = rl.Vector2.zero(),
@@ -13,10 +24,11 @@ pub const Flock = struct {
 
     cohesion_factor: f32 = 1,
     avoidance_factor: f32 = 2.5,
-    alignment_factor: f32 = 2,
-    target_factor: f32 = 1,
+    alignment_factor: f32 = 1.5,
+    target_factor: f32 = 1.5,
     bounds_avoidance_factor: f32 = 10,
     normal_acceleration_factor: f32 = 0.5,
+    danger_avoidance_factor: f32 = 2,
 
     level_size: f32 = 0,
 
@@ -24,6 +36,7 @@ pub const Flock = struct {
     debug_infos: ?agent.AgentDebugInfos = null,
 
     bullet_pool: *bullet_pool.BulletPool = undefined,
+    danger_zones_pool: [200]DangerZone = [_]DangerZone {DangerZone {}} ** 200,
 
     pub fn update(self: *Flock) void {
         if (self.debug_infos) |*infos| {
@@ -36,13 +49,43 @@ pub const Flock = struct {
                 continue;
             }
 
-            for (self.bullet_pool.bullets) |*bullet| {
+            bullets: for (self.bullet_pool.bullets) |*bullet| {
                 if (bullet.*.entity.is_active) {
                     if (current.hasPoint(bullet.*.entity.position)) {
                         current.entity.is_active = false;
                         bullet.entity.is_active = false;
-                    } 
-                } 
+
+                        for (0..self.danger_zones_pool.len - 1) |index| {
+                            const zone = self.danger_zones_pool[index];
+                            if (!zone.is_active) {
+                                self.danger_zones_pool[index] = DangerZone {
+                                    .is_active = true,
+                                    .position = current.entity.position,
+                                    .radius = danger_zone_initial_radius
+                                };
+
+                                break :bullets;
+                            } 
+                        }
+
+                        @panic("No more danger zones available");
+                    }
+                }
+            }
+
+            // Danger avoidance
+            var danger_avoidance_count: f32 = 0;
+            var danger_avoidance = rl.Vector2.zero();
+
+            for (self.danger_zones_pool) |zone| {
+                const dist = current.entity.position.distanceTo(zone.position);
+                if (zone.is_active) {
+                    if (dist <= zone.radius) {
+                        danger_avoidance_count += 1;
+                        const dir = current.entity.position.sub(zone.position).normalize();
+                        danger_avoidance = danger_avoidance.add((dir.scale(1 / dist)));
+                    }
+                }
             }
 
             var attraction_count: f32 = 0;
@@ -109,6 +152,10 @@ pub const Flock = struct {
                 separation = steerToward(current.velocity, separation_target).scale(rl.GetFrameTime());
             }
 
+            if (danger_avoidance_count > 0) {
+                danger_avoidance = steerToward(current.velocity, danger_avoidance.scale(1 / danger_avoidance_count).scale(rl.GetFrameTime()));
+            }
+
             const dist_from_center = current.entity.position.distanceTo(rl.Vector2.zero());
 
             if (dist_from_center > self.level_size - self.avoidance_radius) {
@@ -137,11 +184,26 @@ pub const Flock = struct {
                     .add(cohesion.scale(self.cohesion_factor))
                     .add(bounds_avoidance.scale(self.bounds_avoidance_factor))
                     .add(target_attraction.scale(self.target_factor))
-                    .add(forward.scale(agent.base_acceleration * self.normal_acceleration_factor).scale(rl.GetFrameTime()));
+                    .add(forward.scale(agent.base_acceleration * self.normal_acceleration_factor).scale(rl.GetFrameTime()))
+                    .add(danger_avoidance.scale(self.danger_avoidance_factor));
 
                 current.velocity = rl.Vector2ClampValue(current.velocity, -agent.max_speed, agent.max_speed);
                 current.update();
             }
+        }
+
+        for (0..self.danger_zones_pool.len - 1) |index| {
+            var zone = self.danger_zones_pool[index];
+            if (!zone.is_active) {
+                continue;
+            }
+
+            const radius = zone.radius - (danger_zone_shrink_speed * rl.GetFrameTime());
+            self.danger_zones_pool[index] = DangerZone {
+                .radius = radius,
+                .is_active = radius > 0,
+                .position = zone.position
+            };
         }
     }
 
@@ -151,6 +213,10 @@ pub const Flock = struct {
                 a.draw();
             }
         }
+    }
+
+    pub fn drawScreen(self: *Flock) void {
+        _ = self;
     }
 };
 
