@@ -13,16 +13,26 @@ const debug = @import("../debug_drawer.zig");
 const Agent = agent.Agent;
 const Flock = @import("../../flock.zig").Flock;
 
+const BulletPool = @import("../../bullet_pool.zig").BulletPool;
+
 var sliders_area: rl.Rectangle = undefined;
 
 pub const size: f32 = 50;
-pub const flock_size = 100;
+pub const level_bounds: rl.Rectangle = rl.Rectangle {
+    .x = 0,
+    .y = 0,
+    .height = size * 2,
+    .width = size * 2
+};
+
+pub const flock_size = 250;
 
 const cohesion_color = rl.YELLOW;
 const avoidance_color = rl.RED;
 
 var camera: *rl.Camera2D = undefined;
 var flock: Flock = undefined;
+var bullet_pool: BulletPool = undefined;
 
 pub var scene = Scene {
     .initFn = init,
@@ -51,13 +61,25 @@ pub fn init(cam: *rl.Camera2D) void {
         a.* = Agent.new(position, rotation, null);
     }
 
+    bullet_pool = BulletPool.init(std.heap.page_allocator, 1);
+
     flock = Flock {
         .agents = agents,
-        .level_size = size
+        .level_bounds = level_bounds,
+        .bullet_pool = &bullet_pool
     };
 }
 
 pub fn update() void {
+    if (rl.IsWindowResized()) {
+        sliders_area = rl.Rectangle {
+            .height = 155,
+            .width = 250,
+            .x = @as(f32, @floatFromInt(settings.resolution.Width)) - 250,
+            .y = 0 
+        };
+    }
+
     if (rl.IsMouseButtonPressed(rl.MouseButton.MOUSE_BUTTON_LEFT)) {
         const mouse_screen_pos = rl.GetMousePosition();
 
@@ -92,7 +114,7 @@ pub fn draw_screen() void {
     const allocator = std.heap.page_allocator;
 
     if (flock.debug_infos) |infos| {
-        const position_txt = std.fmt.allocPrintZ(allocator, "position: ({d}, {d})", infos.self.position) catch unreachable;
+        const position_txt = std.fmt.allocPrintZ(allocator, "position: ({d}, {d})", infos.self.entity.position) catch unreachable;
         const velocity_txt = std.fmt.allocPrintZ(allocator, "velocity: ({d}, {d})", infos.self.velocity) catch unreachable;
         const cohesion_txt = std.fmt.allocPrintZ(allocator, "cohesion: ({d}, {d})", infos.cohesion_force) catch unreachable;
         const alignment_txt = std.fmt.allocPrintZ(allocator, "alignment: ({d}, {d})", infos.alignment_force) catch unreachable;
@@ -193,8 +215,8 @@ pub fn draw_screen() void {
 pub fn select_agent(position: rl.Vector2) void {
     for (flock.agents, 0..) |*a, index| {
         const bounds = rl.Rectangle {
-            .x = a.*.position.x - 0.5,
-            .y = a.*.position.y - 0.5,
+            .x = a.*.entity.position.x - 0.5,
+            .y = a.*.entity.position.y - 0.5,
             .width = 1,
             .height = 1
         };
@@ -231,8 +253,8 @@ fn drawDebugInfos() void {
     for (infos.in_cohesion_range.items) |a| {
         debug.drawShape(debug.Shape { 
             .color = cohesion_color, 
-            .origin = infos.self.position, 
-            .kind = .{ .line = a.position }
+            .origin = infos.self.entity.position, 
+            .kind = .{ .line = a.entity.position }
         });
     }
 
@@ -240,21 +262,21 @@ fn drawDebugInfos() void {
     for (infos.in_avoidance_range.items) |a| {
         debug.drawShape(debug.Shape { 
             .color = avoidance_color, 
-            .origin = infos.self.position, 
-            .kind = .{ .line = a.position }
+            .origin = infos.self.entity.position, 
+            .kind = .{ .line = a.entity.position }
         });
     }
 
     // Draw cohesion circle
     debug.drawShape(debug.Shape {
-        .origin = infos.self.position,
+        .origin = infos.self.entity.position,
         .color = cohesion_color,
         .kind = .{ .circle = flock.cohesion_radius }
     });
 
     // Draw avoidance circle
     debug.drawShape(debug.Shape {
-        .origin = infos.self.position,
+        .origin = infos.self.entity.position,
         .color = avoidance_color,
         .kind = .{.circle = flock.avoidance_radius}
     });

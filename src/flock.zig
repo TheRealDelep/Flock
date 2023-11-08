@@ -6,7 +6,7 @@ const agent = @import("./entities/agent.zig");
 const bullet_pool = @import("./bullet_pool.zig");
 const Agent = agent.Agent;
 
-const danger_zone_initial_radius: f32 = 8;
+const danger_zone_initial_radius: f32 = 5;
 const danger_zone_lifespan: f32 = 2;
 const danger_zone_shrink_speed = danger_zone_initial_radius / danger_zone_lifespan;
 
@@ -19,18 +19,18 @@ pub const DangerZone = struct {
 pub const Flock = struct {
     target: rl.Vector2 = rl.Vector2.zero(),
 
-    cohesion_radius: f32 = 5,
-    avoidance_radius: f32 = 1,
+    cohesion_radius: f32 = 8,
+    avoidance_radius: f32 = 1.25,
 
-    cohesion_factor: f32 = 1,
+    cohesion_factor: f32 = 0.75,
     avoidance_factor: f32 = 2.5,
     alignment_factor: f32 = 1.5,
-    target_factor: f32 = 1.5,
-    bounds_avoidance_factor: f32 = 10,
+    target_factor: f32 = 0,
+    bounds_avoidance_factor: f32 = 3,
     normal_acceleration_factor: f32 = 0.5,
     danger_avoidance_factor: f32 = 2,
 
-    level_size: f32 = 0,
+    level_bounds: rl.Rectangle,
 
     agents: []Agent,
     debug_infos: ?agent.AgentDebugInfos = null,
@@ -109,10 +109,11 @@ pub const Flock = struct {
                     current.velocity.normalize(), 
                     other.entity.position.sub(current.entity.position).normalize()
                 );
+                _ = dot;
 
-                if (dot < -0.5) {
-                    continue;
-                }
+                // if (dot < -0.5) {
+                    // continue;
+                // }
 
                 // Cohesion and Alignment
                 if (dist < self.cohesion_radius) {
@@ -152,14 +153,22 @@ pub const Flock = struct {
                 separation = steerToward(current.velocity, separation_target).scale(rl.GetFrameTime());
             }
 
+            // DANGER!!!
             if (danger_avoidance_count > 0) {
                 danger_avoidance = steerToward(current.velocity, danger_avoidance.scale(1 / danger_avoidance_count).scale(rl.GetFrameTime()));
             }
 
-            const dist_from_center = current.entity.position.distanceTo(rl.Vector2.zero());
+            // Bounds avoidance
+            const nearest_bound = findNearestPointOnBounds(self.level_bounds, current.entity.position);
+            const dist_from_bound = current.entity.position.distanceTo(nearest_bound);
 
-            if (dist_from_center > self.level_size - self.avoidance_radius) {
-                bounds_avoidance = steerToward(current.velocity, current.entity.position.scale(-1)).scale(rl.GetFrameTime());
+            if (dist_from_bound < 10) {
+                var normal = current.entity.position.sub(nearest_bound);
+                _ = normal;
+                bounds_avoidance = steerToward(current.velocity, current.entity.position.scale(-1))
+                    //.scale(std.math.clamp(1 / dist_from_bound, 0.5, 20))
+                    .scale(rl.GetFrameTime());
+                //bounds_avoidance = steerToward(current.velocity, bounds_avoidance).scale(rl.GetFrameTime());
             }
 
             const target_attraction = steerToward(current.velocity, self.target.sub(current.entity.position)).scale(rl.GetFrameTime());
@@ -229,4 +238,45 @@ fn steerToward(velocity: rl.Vector2, target: rl.Vector2) rl.Vector2 {
         agent.max_acceleration_vec.scale(-1), 
         agent.max_acceleration_vec
     );
+}
+
+fn findNearestPointOnBounds(rect: rl.Rectangle, point: rl.Vector2) rl.Vector2 {
+    const is_inside = rl.CheckCollisionPointRec(point.add(rl.Vector2 { .x =  rect.width / 2, .y = rect.height / 2}), rect);
+
+    if (!is_inside) {
+        return rl.Vector2 {
+            .x = @max(rect.x - rect.width / 2, @min(point.x, rect.x + rect.width / 2)),
+            .y = @max(rect.y - rect.height / 2, @min(point.y, rect.y + rect.height / 2))
+        };
+    }
+
+    const left = rl.Vector2 { .x = rect.x - rect.width / 2, .y = point.y };
+    const right = rl.Vector2 { .x = rect.x + rect.width / 2, .y = point.y };
+    const bottom = rl.Vector2 { .x = point.x, .y = rect.y - rect.height / 2 };
+    const top = rl.Vector2 { .x = point.x, .y = rect.y + rect.height / 2 };
+
+    var dist_to_left = left.distanceTo(point);
+    var dist_to_right = right.distanceTo(point);
+    var dist_to_bottom = bottom.distanceTo(point);
+    var dist_to_top = top.distanceTo(point);
+
+    var closest = left;
+    var dist = dist_to_left;
+
+    if (dist_to_right < dist) {
+        closest = right;
+        dist = dist_to_right;
+    }
+
+    if (dist_to_bottom < dist) {
+        closest = bottom;
+        dist = dist_to_bottom;
+    }
+
+    if (dist_to_top < dist) {
+        closest = top;
+        dist = dist_to_top;
+    }
+
+    return closest;
 }

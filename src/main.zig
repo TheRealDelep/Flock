@@ -26,7 +26,8 @@ pub fn main() void {
 
     debug.init(std.heap.page_allocator);
 
-    var current_scene = @import("./debug//scenes/debug_player_flock_scene.zig").scene;
+    //var current_scene = @import("./debug//scenes/debug_player_flock_scene.zig").scene;
+    var current_scene = @import("./debug/scenes/debug_flock_scene.zig").scene;
     if (current_scene.initFn) |init| { init(&cam); }
 
     while (!rl.WindowShouldClose()) {
