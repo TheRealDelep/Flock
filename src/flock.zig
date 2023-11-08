@@ -25,7 +25,7 @@ pub const Flock = struct {
     cohesion_factor: f32 = 1,
     avoidance_factor: f32 = 2.5,
     alignment_factor: f32 = 1.5,
-    target_factor: f32 = 0,
+    target_factor: f32 = 1.5,
     bounds_avoidance_factor: f32 = 10,
     normal_acceleration_factor: f32 = 0.5,
     danger_avoidance_factor: f32 = 2,
@@ -110,7 +110,7 @@ pub const Flock = struct {
                     other.entity.position.sub(current.entity.position).normalize()
                 );
 
-                if (dot < -0.75) {
+                if (dot < -0.5) {
                     continue;
                 }
 

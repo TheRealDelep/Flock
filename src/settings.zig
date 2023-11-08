@@ -1,4 +1,4 @@
-const Resolution = struct {
+pub const Resolution = struct {
     Width: u16,
     Height: u16,
 };

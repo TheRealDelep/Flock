@@ -7,7 +7,7 @@ const player = @import("../../entities/player.zig");
 const Flock = @import("../../flock.zig").Flock;
 
 const level_size = 200;
-const flock_size = 1000;
+const flock_size = 500;
 
 pub const scene = @import("../../scene.zig").Scene {
     .initFn = init,

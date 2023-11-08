@@ -11,13 +11,18 @@ pub fn main() void {
 
     rl.InitWindow(@as(i32, @intCast(settings.resolution.Width)), @as(i32, @intCast(settings.resolution.Height)), "HUGEEEEE FLOCK!!!");
     defer rl.CloseWindow();
-
+        
     rl.SetTargetFPS(60);
 
-    var cam = rl.Camera2D{ .target = rl.Vector2.zero(), .offset = rl.Vector2{
-        .x = @floatFromInt(@divExact(@as(i32, @intCast(settings.resolution.Width)), 2)),
-        .y = @floatFromInt(@divExact(@as(i32, @intCast(settings.resolution.Height)), 2)),
-    }, .rotation = 0, .zoom = 0.5 };
+    var cam = rl.Camera2D{ 
+        .target = rl.Vector2.zero(), 
+        .offset = rl.Vector2 {
+            .x = @floatFromInt(@divFloor(@as(i32, @intCast(settings.resolution.Width)), 2)),
+            .y = @floatFromInt(@divFloor(@as(i32, @intCast(settings.resolution.Height)), 2)),
+        }, 
+        .rotation = 0, 
+        .zoom = 0.25 
+    };
 
     debug.init(std.heap.page_allocator);
 
@@ -25,11 +30,24 @@ pub fn main() void {
     if (current_scene.initFn) |init| { init(&cam); }
 
     while (!rl.WindowShouldClose()) {
+        if (rl.IsWindowResized()) {
+            std.debug.print("Window resized. Height:{d}, Width:{d} \n", .{rl.GetRenderHeight(), rl.GetRenderWidth()});
+            settings.resolution = .{
+                .Height = @as(u16, @intCast(rl.GetRenderHeight())),
+                .Width = @as(u16, @intCast(rl.GetRenderWidth()))
+            };
+
+            cam.offset = rl.Vector2 {
+                .x = @floatFromInt(@divFloor(@as(i32, @intCast(settings.resolution.Width)), 2)),
+                .y = @floatFromInt(@divFloor(@as(i32, @intCast(settings.resolution.Height)), 2)),
+            };
+        }
+        
         // --- UPDATE ---
         controller.update(&cam);
         if (current_scene.updateFn) |update| { update(); }
 
-        // --- Draw ---
+        // --- DRAW ---
         rl.BeginDrawing();
         defer rl.EndDrawing();
 
