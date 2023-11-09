@@ -5,22 +5,25 @@ const game_manager = @import("game_manager.zig");
 const agent = @import("./entities/agent.zig");
 const bullet_pool = @import("./bullet_pool.zig");
 const Agent = agent.Agent;
+const player = @import("./entities/player.zig");
+const debug = @import("./debug/debug_drawer.zig");
 
-const danger_zone_initial_radius: f32 = 5;
+const danger_zone_initial_radius: f32 = 8;
 const danger_zone_lifespan: f32 = 2;
 const danger_zone_shrink_speed = danger_zone_initial_radius / danger_zone_lifespan;
 
 pub const DangerZone = struct {
-    position: rl.Vector2 = rl.Vector2.zero(),
+    begin: rl.Vector2 = rl.Vector2.zero(),
+    end: rl.Vector2 = rl.Vector2.zero(),
     is_active: bool = false,
-    radius: f32 = 0
+    radius: f32 = 0,
 };
 
 pub const Flock = struct {
     target: rl.Vector2 = rl.Vector2.zero(),
 
     cohesion_radius: f32 = 8,
-    avoidance_radius: f32 = 1.25,
+    avoidance_radius: f32 = 1,
 
     cohesion_factor: f32 = 0.75,
     avoidance_factor: f32 = 2.5,
@@ -29,6 +32,7 @@ pub const Flock = struct {
     bounds_avoidance_factor: f32 = 3,
     normal_acceleration_factor: f32 = 0.5,
     danger_avoidance_factor: f32 = 2,
+    center_attraction_factor: f32 = 0.25,
 
     level_bounds: rl.Rectangle,
 
@@ -60,7 +64,8 @@ pub const Flock = struct {
                             if (!zone.is_active) {
                                 self.danger_zones_pool[index] = DangerZone {
                                     .is_active = true,
-                                    .position = current.entity.position,
+                                    .begin = bullet.entity.position.add(bullet.direction.scale(-10)),
+                                    .end = current.entity.position.add(bullet.direction.scale(25)),
                                     .radius = danger_zone_initial_radius
                                 };
 
@@ -78,14 +83,64 @@ pub const Flock = struct {
             var danger_avoidance = rl.Vector2.zero();
 
             for (self.danger_zones_pool) |zone| {
-                const dist = current.entity.position.distanceTo(zone.position);
-                if (zone.is_active) {
-                    if (dist <= zone.radius) {
-                        danger_avoidance_count += 1;
-                        const dir = current.entity.position.sub(zone.position).normalize();
-                        danger_avoidance = danger_avoidance.add((dir.scale(1 / dist)));
-                    }
+                if (!zone.is_active) {
+                    continue;
                 }
+
+                const dir = zone.end.sub(zone.begin).normalize();
+                const normal = rl.Vector2 { .x = dir.y, .y = -dir.x };
+
+                // const points = [_]rl.Vector2 {
+                //     zone.begin.add(normal.scale(-zone.radius)),
+                //     zone.begin.add(normal.scale(zone.radius)),
+                //     zone.end.add(normal.scale(zone.radius)),
+                //     zone.end.add(normal.scale(-zone.radius))
+                // };
+
+                // debug.drawShape(debug.Shape {
+                //     .color = rl.BLUE,
+                //     .origin = points[0],
+                //     .kind = .{.line = points[1]}
+                // });
+
+                // debug.drawShape(debug.Shape {
+                //     .color = rl.BLUE,
+                //     .origin = points[1],
+                //     .kind = .{.line = points[2]}
+                // });
+
+                // debug.drawShape(debug.Shape {
+                //     .color = rl.BLUE,
+                //     .origin = points[2],
+                //     .kind = .{.line = points[3]}
+                // });
+
+                // debug.drawShape(debug.Shape {
+                //     .color = rl.BLUE,
+                //     .origin = points[3],
+                //     .kind = .{.line = points[0]}
+                // });
+
+                const closest_point = findClosestPointOnLine(current.entity.position, zone.begin, zone.end);
+                const dir_to_closest = closest_point.sub(current.entity.position).normalize();
+                const dist = current.entity.position.distanceTo(closest_point);
+
+                if (dist > zone.radius) {
+                    continue;
+                }
+
+                if (rl.Vector2Equals(normal, dir_to_closest) != 1 and rl.Vector2Equals(normal.scale(-1), dir_to_closest) != 1) {
+                    continue;
+                }
+
+                // debug.drawShape(debug.Shape {
+                //     .color = rl.RED,
+                //     .origin = current.entity.position,
+                //     .kind = .{.line = closest_point}
+                // });
+
+                danger_avoidance_count += 1;
+                danger_avoidance = danger_avoidance.add((dir_to_closest.scale(-1 / dist)));
             }
 
             var attraction_count: f32 = 0;
@@ -172,6 +227,7 @@ pub const Flock = struct {
             }
 
             const target_attraction = steerToward(current.velocity, self.target.sub(current.entity.position)).scale(rl.GetFrameTime());
+            const center_attraction = steerToward(current.velocity, current.entity.position.scale(-1)).scale(rl.GetFrameTime());
 
             if (self.debug_infos) |*infos| {
                 if (infos.index == current_index) {
@@ -194,7 +250,8 @@ pub const Flock = struct {
                     .add(bounds_avoidance.scale(self.bounds_avoidance_factor))
                     .add(target_attraction.scale(self.target_factor))
                     .add(forward.scale(agent.base_acceleration * self.normal_acceleration_factor).scale(rl.GetFrameTime()))
-                    .add(danger_avoidance.scale(self.danger_avoidance_factor));
+                    .add(danger_avoidance.scale(self.danger_avoidance_factor))
+                    .add(center_attraction.scale(self.center_attraction_factor));
 
                 current.velocity = rl.Vector2ClampValue(current.velocity, -agent.max_speed, agent.max_speed);
                 current.update();
@@ -211,7 +268,8 @@ pub const Flock = struct {
             self.danger_zones_pool[index] = DangerZone {
                 .radius = radius,
                 .is_active = radius > 0,
-                .position = zone.position
+                .begin = zone.begin,
+                .end = zone.end
             };
         }
     }
@@ -279,4 +337,14 @@ fn findNearestPointOnBounds(rect: rl.Rectangle, point: rl.Vector2) rl.Vector2 {
     }
 
     return closest;
+}
+
+fn findClosestPointOnLine(point: rl.Vector2, line_start: rl.Vector2, line_end: rl.Vector2) rl.Vector2 {
+    const line = line_end.sub(line_start);
+    const len = line.length();
+    const dir = line.normalize();
+
+    const v = point.sub(line_start);
+    const dot = std.math.clamp(v.dot(dir), 0, len);
+    return line_start.add(dir.scale(dot));
 }

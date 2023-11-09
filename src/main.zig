@@ -27,7 +27,7 @@ pub fn main() void {
     debug.init(std.heap.page_allocator);
 
     //var current_scene = @import("./debug//scenes/debug_player_flock_scene.zig").scene;
-    var current_scene = @import("./debug/scenes/debug_flock_scene.zig").scene;
+    var current_scene = @import("./debug/scenes/debug_player_flock_scene.zig").scene;
     if (current_scene.initFn) |init| { init(&cam); }
 
     while (!rl.WindowShouldClose()) {
@@ -52,12 +52,12 @@ pub fn main() void {
         rl.BeginDrawing();
         defer rl.EndDrawing();
 
-        debug.draw();
 
         rl.ClearBackground(rl.BLACK);
 
         rl.BeginMode2D(cam);
         if (current_scene.camDrawFn) |draw| { draw(); }
+        debug.draw();
 
         rl.EndMode2D();
         if (current_scene.screenDrawFn) |draw| { draw(); }

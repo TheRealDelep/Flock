@@ -7,8 +7,8 @@ const Entity = @import("./entity.zig").Entity;
 const Bullet = @import("../bullet_pool.zig").Bullet;
 const BulletPool = @import("../bullet_pool.zig").BulletPool;
 
-const max_speed: f32 = 20;
-const fire_rate: f32 = 15;
+const max_speed: f32 = 25;
+const fire_rate: f32 = 10;
 const fire_rate_dt: f32 = 1 / fire_rate;
 
 const vertices = [_]rl.Vector2 {

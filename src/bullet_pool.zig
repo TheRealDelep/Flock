@@ -4,7 +4,7 @@ const rl = @import("raylib");
 const settings = @import("settings.zig");
 const Entity = @import("./entities/entity.zig").Entity;
 
-const bullet_speed: f32 = 40;
+const bullet_speed: f32 = 100;
 const max_lifespan: f32 = 2;
 
 pub const BulletPool = struct {
