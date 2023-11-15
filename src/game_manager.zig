@@ -1,6 +1,7 @@
 pub const GameState = enum {
     running,
-    paused
+    paused,
+    gameover
 };
 
 pub var game_state = GameState.paused;

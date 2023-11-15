@@ -56,6 +56,12 @@ pub const BulletPool = struct {
     }
 };
 
+pub const BulletTag = enum {
+    bullet,
+    grenade,
+    lazer
+};
+
 pub const Bullet = struct {
     entity: Entity,
     direction: rl.Vector2 = rl.Vector2.zero(),

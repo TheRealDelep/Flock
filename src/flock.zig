@@ -8,15 +8,30 @@ const Agent = agent.Agent;
 const player = @import("./entities/player.zig");
 const debug = @import("./debug/debug_drawer.zig");
 
-const danger_zone_initial_radius: f32 = 8;
-const danger_zone_lifespan: f32 = 2;
-const danger_zone_shrink_speed = danger_zone_initial_radius / danger_zone_lifespan;
+const bullet_danger_zone_radius: f32 = 2;
+const lazer_danger_zone_radius: f32 = 6;
+const grenade_danger_zone_radius: f32 = 10;
+
+const bullet_danger_zone_lifespan: f32 = 0.5;
+const lazer_danger_zone_lifespan: f32 = 2;
+const grenade_danger_zone_lifespan: f32 = 3;
+
+const bullet_danger_zone_shrink_speed = bullet_danger_zone_radius / bullet_danger_zone_lifespan;
+const lazer_danger_zone_shrink_speed = lazer_danger_zone_radius / lazer_danger_zone_lifespan;
+const grenade_danger_zone_shrink_speed = grenade_danger_zone_radius / grenade_danger_zone_lifespan;
+
+pub const DangerZoneTag = enum {
+    bullet,
+    laser,
+    grenade 
+};
 
 pub const DangerZone = struct {
     begin: rl.Vector2 = rl.Vector2.zero(),
     end: rl.Vector2 = rl.Vector2.zero(),
     is_active: bool = false,
     radius: f32 = 0,
+    kind: DangerZoneTag = DangerZoneTag.bullet
 };
 
 pub const Flock = struct {
@@ -25,13 +40,13 @@ pub const Flock = struct {
     cohesion_radius: f32 = 8,
     avoidance_radius: f32 = 1,
 
-    cohesion_factor: f32 = 0.75,
+    cohesion_factor: f32 = 1,
     avoidance_factor: f32 = 2.5,
     alignment_factor: f32 = 1.5,
-    target_factor: f32 = 0,
+    target_factor: f32 = 1.5,
     bounds_avoidance_factor: f32 = 3,
     normal_acceleration_factor: f32 = 0.5,
-    danger_avoidance_factor: f32 = 2,
+    danger_avoidance_factor: f32 = 0.5,
     center_attraction_factor: f32 = 0.25,
 
     level_bounds: rl.Rectangle,
@@ -53,29 +68,79 @@ pub const Flock = struct {
                 continue;
             }
 
+            var new_zone: ?DangerZone = null;
+
             bullets: for (self.bullet_pool.bullets) |*bullet| {
                 if (bullet.*.entity.is_active) {
                     if (current.hasPoint(bullet.*.entity.position)) {
                         current.entity.is_active = false;
                         bullet.entity.is_active = false;
-
-                        for (0..self.danger_zones_pool.len - 1) |index| {
-                            const zone = self.danger_zones_pool[index];
-                            if (!zone.is_active) {
-                                self.danger_zones_pool[index] = DangerZone {
-                                    .is_active = true,
-                                    .begin = bullet.entity.position.add(bullet.direction.scale(-10)),
-                                    .end = current.entity.position.add(bullet.direction.scale(25)),
-                                    .radius = danger_zone_initial_radius
-                                };
-
-                                break :bullets;
-                            } 
-                        }
-
-                        @panic("No more danger zones available");
+                        
+                        new_zone = DangerZone {
+                            .begin = current.entity.position,
+                            .end = current.entity.position,
+                            .is_active = true,
+                            .radius = bullet_danger_zone_radius,
+                            .kind = DangerZoneTag.bullet
+                        };
+                        break :bullets;
                     }
                 }
+            }
+
+            if (new_zone == null and player.is_grenade_active and current.hasPoint(player.grenade_position)) {
+                current.entity.is_active = false;
+                for (self.agents) |*a| {
+                    if (a.*.entity.position.distanceTo(player.grenade_position) <= player.grenade_radius) {
+                        a.*.entity.is_active = false;
+                    }
+                }
+
+                new_zone = DangerZone {
+                    .is_active = true,
+                    .begin = player.grenade_position,
+                    .end = player.grenade_position,
+                    .radius = grenade_danger_zone_radius,
+                    .kind = DangerZoneTag.grenade
+                };
+
+                player.is_grenade_active = false;
+            }
+
+            if (new_zone == null and player.is_lazer_active) {
+                for (self.agents) |*a| {
+                    const dir = rl.Vector2Rotate(.{.x = 0, .y = 1}, player.entity.rotation);
+                    const begin = player.entity.position; 
+                    const end = begin.add(dir.scale(player.lazer_length));
+                    const normal = rl.Vector2 { .x = dir.y, .y = -dir.x };
+
+                    const closest_point = findClosestPointOnLine(current.entity.position, begin, end);
+                    const dir_to_closest = closest_point.sub(current.entity.position).normalize();
+                    const dist = current.entity.position.distanceTo(closest_point);
+
+                    if (dist > player.lazer_radius or 
+                        (rl.Vector2Equals(dir_to_closest, normal) !=  1 and rl.Vector2Equals(dir_to_closest, normal.scale(-1)) != 1)){
+                    }
+
+                    a.*.entity.is_active = false;
+                    player.is_lazer_active = false;
+                }
+            }
+
+            if (new_zone) |z| {
+                danger: for (0..self.danger_zones_pool.len - 1) |index| {
+                    const c_zone = self.danger_zones_pool[index];
+
+                    if (index == self.danger_zones_pool.len - 1 and c_zone.is_active) {
+                        @panic("No more danger zones available");
+                    }
+
+                    if (!c_zone.is_active) {
+                        self.danger_zones_pool[index] = z;
+                        break :danger;
+                    } 
+                }
+
             }
 
             // Danger avoidance
@@ -87,60 +152,32 @@ pub const Flock = struct {
                     continue;
                 }
 
-                const dir = zone.end.sub(zone.begin).normalize();
-                const normal = rl.Vector2 { .x = dir.y, .y = -dir.x };
+                if (zone.kind == DangerZoneTag.laser) {
+                    const dir = zone.end.sub(zone.begin).normalize();
+                    const normal = rl.Vector2 { .x = dir.y, .y = -dir.x };
 
-                // const points = [_]rl.Vector2 {
-                //     zone.begin.add(normal.scale(-zone.radius)),
-                //     zone.begin.add(normal.scale(zone.radius)),
-                //     zone.end.add(normal.scale(zone.radius)),
-                //     zone.end.add(normal.scale(-zone.radius))
-                // };
+                    const closest_point = findClosestPointOnLine(current.entity.position, zone.begin, zone.end);
+                    const dir_to_closest = closest_point.sub(current.entity.position).normalize();
+                    const dist = current.entity.position.distanceTo(closest_point);
 
-                // debug.drawShape(debug.Shape {
-                //     .color = rl.BLUE,
-                //     .origin = points[0],
-                //     .kind = .{.line = points[1]}
-                // });
+                    if (dist > zone.radius) {
+                        continue;
+                    }
 
-                // debug.drawShape(debug.Shape {
-                //     .color = rl.BLUE,
-                //     .origin = points[1],
-                //     .kind = .{.line = points[2]}
-                // });
+                    if (rl.Vector2Equals(normal, dir_to_closest) != 1 and rl.Vector2Equals(normal.scale(-1), dir_to_closest) != 1) {
+                        continue;
+                    }
 
-                // debug.drawShape(debug.Shape {
-                //     .color = rl.BLUE,
-                //     .origin = points[2],
-                //     .kind = .{.line = points[3]}
-                // });
-
-                // debug.drawShape(debug.Shape {
-                //     .color = rl.BLUE,
-                //     .origin = points[3],
-                //     .kind = .{.line = points[0]}
-                // });
-
-                const closest_point = findClosestPointOnLine(current.entity.position, zone.begin, zone.end);
-                const dir_to_closest = closest_point.sub(current.entity.position).normalize();
-                const dist = current.entity.position.distanceTo(closest_point);
-
-                if (dist > zone.radius) {
-                    continue;
+                    danger_avoidance_count += 1;
+                    danger_avoidance = danger_avoidance.add((dir_to_closest.scale(-1 / dist)));
+                } else {
+                    const dist = current.entity.position.distanceTo(zone.begin);
+                    if (dist <= zone.radius) {
+                        const dir = zone.begin.sub(current.entity.position);
+                        danger_avoidance_count += 1;
+                        danger_avoidance = danger_avoidance.add(dir.scale(-1 / dist));
+                    }
                 }
-
-                if (rl.Vector2Equals(normal, dir_to_closest) != 1 and rl.Vector2Equals(normal.scale(-1), dir_to_closest) != 1) {
-                    continue;
-                }
-
-                // debug.drawShape(debug.Shape {
-                //     .color = rl.RED,
-                //     .origin = current.entity.position,
-                //     .kind = .{.line = closest_point}
-                // });
-
-                danger_avoidance_count += 1;
-                danger_avoidance = danger_avoidance.add((dir_to_closest.scale(-1 / dist)));
             }
 
             var attraction_count: f32 = 0;
@@ -153,7 +190,7 @@ pub const Flock = struct {
             var bounds_avoidance = rl.Vector2.zero();
 
             for (self.agents, 0..) |*other, other_index| {
-                if (current_index == other_index) {
+                if (current_index == other_index or !other.entity.is_active) {
                     continue;
                 }
 
@@ -264,7 +301,13 @@ pub const Flock = struct {
                 continue;
             }
 
-            const radius = zone.radius - (danger_zone_shrink_speed * rl.GetFrameTime());
+            const shrink_speed = switch (zone.kind) {
+                DangerZoneTag.bullet => bullet_danger_zone_shrink_speed,
+                DangerZoneTag.grenade => grenade_danger_zone_shrink_speed,
+                DangerZoneTag.laser => lazer_danger_zone_shrink_speed
+            };
+
+            const radius = zone.radius - (shrink_speed * rl.GetFrameTime());
             self.danger_zones_pool[index] = DangerZone {
                 .radius = radius,
                 .is_active = radius > 0,

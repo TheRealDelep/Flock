@@ -7,11 +7,11 @@ const helper = @import("../helper.zig");
 
 const debug = @import("../debug/debug_drawer.zig");
 
-pub const max_speed: f32 = 15;
-pub const cruise_speed: f32 = 10;
+pub const max_speed: f32 = 25;
+pub const cruise_speed: f32 = 15;
 
-pub const max_acceleration: f32 = 10;
-pub const base_acceleration: f32 = 5;
+pub const max_acceleration: f32 = 15;
+pub const base_acceleration: f32 = 8;
 
 pub const max_acceleration_vec = rl.Vector2 {
     .x = max_acceleration,

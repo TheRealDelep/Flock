@@ -6,9 +6,11 @@ const entities = @import("../../entities/entities.zig");
 const player = @import("../../entities/player.zig");
 const Flock = @import("../../flock.zig").Flock;
 const DebugInfos = @import("../../entities/agent.zig").AgentDebugInfos;
+const game_manager = @import("../../game_manager.zig");
+const settings = @import("../../settings.zig");
 
 const level_size = 100;
-const flock_size = 1000;
+const flock_size = 500;
 
 pub const scene = @import("../../scene.zig").Scene {
     .initFn = init,
@@ -26,8 +28,6 @@ const exit_rect = rl.Rectangle {
     .height = 20,
     .width = 10
 };
-
-var score: u32 = 0;
 
 pub fn init(camera: *rl.Camera2D) void {
     arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -60,18 +60,22 @@ pub fn init(camera: *rl.Camera2D) void {
         },
         .agents = agents,
         .bullet_pool = &player.bullet_pool,
+        .target = exit_rect.center(),
+        .target_factor = 0.5,
     };
 }
 
 pub fn update() void {
+    if (game_manager.game_state == game_manager.GameState.gameover) {
+        return;
+    }
     player.update();
     flock.target = player.entity.position; 
     flock.update();
 
     for (flock.agents) |*a| {
-        if (a.entity.is_active and rl.CheckCollisionPointRec(a.entity.position, exit_rect)) {
-            a.entity.is_active = false;
-            score += 1;
+        if (a.entity.is_active and rl.CheckCollisionCircles(player.entity.position, 0.5, a.*.entity.position, 0.5)) {
+            game_manager.game_state = game_manager.GameState.gameover;
         }
     }
 }
@@ -90,17 +94,27 @@ pub fn draw() void {
     };
     
     rl.DrawRectangleLinesEx(level_bounds, 5, rl.WHITE);
-    rl.DrawRectangleLinesEx(rl.Rectangle {
-        .height = exit_rect.height * ppu,
-        .width = exit_rect.width * ppu,
-        .x = exit_rect.x * ppu,
-        .y = exit_rect.y * ppu
-    }, 5, rl.GREEN);
 }
 
 pub fn drawScreen() void {
     flock.drawScreen();
+    var score: u32 = 0;
+    for (flock.agents) |*a| {
+        if (!a.*.entity.is_active) {
+            score +=1;
+        }
+    }
     const score_txt = std.fmt.allocPrintZ(std.heap.page_allocator, "Score: {d}", .{score}) catch unreachable;
 
     rl.DrawText(score_txt, 20, 20, 18, rl.RED);
+    if (game_manager.game_state == game_manager.GameState.gameover) {
+        const game_over_txt = std.fmt.allocPrintZ(std.heap.page_allocator, "GAME OVER", .{}) catch unreachable;
+        rl.DrawText(
+            game_over_txt, 
+            settings.resolution.Width / 2, 
+            settings.resolution.Height / 2, 
+            36, 
+            rl.WHITE
+        );
+    }
 }

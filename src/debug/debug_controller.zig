@@ -14,7 +14,8 @@ pub fn update(cam: *rl.Camera2D) void {
     if (rl.IsKeyPressed(rl.KeyboardKey.KEY_P)) {
         game_manager.game_state = switch (game_manager.game_state) {
             game_manager.GameState.paused => game_manager.GameState.running,
-            game_manager.GameState.running => game_manager.GameState.paused
+            game_manager.GameState.running => game_manager.GameState.paused,
+            game_manager.GameState.gameover => game_manager.GameState.gameover
         };
     }
 
